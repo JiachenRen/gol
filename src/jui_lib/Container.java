@@ -4,7 +4,6 @@ import processing.core.PConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 
 //code refactored Jan 20th
 //idea: Jan 21th, granting both the VBox and HBox the ability to actualize both relative width and height.
@@ -53,8 +52,8 @@ public abstract class Container extends Displayable {
             Displayable displayable = displayables.get(i);
             if (displayable.isVisible())
                 displayable.run();
-            if (displayable.refreshRequested()) {
-                displayable.requestProcessed();
+            if (displayable.updateRequested()) {
+                displayable.updateProcessed();
                 syncSize();
                 arrange();
             }
@@ -435,9 +434,10 @@ public abstract class Container extends Displayable {
         return this;
     }
 
-    public void matchWindowDimension(boolean temp) {
+    public Container matchWindowDimension(boolean temp) {
         if (temp) setRelative(false);
         this.matchWindowDimension = temp;
+        return this;
     }
 
     @Override

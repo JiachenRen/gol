@@ -1,9 +1,12 @@
 
 import game_objs.Context;
 import jui_lib.*;
+import jui_lib.bundles.ValueSelector;
 import processing.core.PApplet;
 
 public class Main extends PApplet {
+    private static int rows = 60;
+    private static int cols = 80;
 
     public static void main(String[] args) {
         String sketch = Thread.currentThread().getStackTrace()[1].getClassName();
@@ -12,25 +15,30 @@ public class Main extends PApplet {
     }
 
     public void settings() {
-        size(800, 600, FX2D);
+        size(900, 600, FX2D);
+        noSmooth();
     }
 
     public void setup() {
+        surface.setResizable(true);
+        surface.setTitle("Game of Life");
+
         JNode.init(this); // always to be used as the first line inside setup
 
         HBox parent = new HBox();
-        parent.matchWindowDimension(true);
+        parent.matchWindowDimension(true)
+                .setCollapseInvisible(true);
         JNode.add(parent);
 
-        Context gameContext = new Context(60, 80);
+        Context gameContext = new Context("#CONTEXT", rows, cols);
         parent.add(gameContext);
 
-        VBox uiPanel = new VBox(0.2f, 1.0f);
+        VBox uiPanel = new VBox(0.1f, 1.0f);
         parent.add(uiPanel);
 
         Button step = new Button(1.0f, 0.05f)
                 .setContent("Step")
-                .onClick(gameContext::iterate);
+                .onClick(getContext()::iterate);
         uiPanel.add(step);
 
         uiPanel.add(new SpaceHolder());
@@ -38,11 +46,71 @@ public class Main extends PApplet {
         Switch flowControl = (Switch) new Switch()
                 .setContent("Iterating", "Paused")
                 .setState(false)
-                .onClick(gameContext::toggleAutoIteration)
+                .onClick(getContext()::toggleAutoIteration)
                 .inheritDisplayProperties(step);
         uiPanel.add(flowControl);
 
+        uiPanel.add(new SpaceHolder());
 
+        ValueSelector speed = new ValueSelector(1.0f, 0.1f)
+                .setTitlePercentage(0.3f)
+                .roundTo(-1)
+                .setTitle("ms/i")
+                .setRange(0, 1000)
+                .setValue(10);
+        speed.link(() -> {
+            getContext().setMillisPerIteration(speed.getIntValue());
+        });
+        uiPanel.add(speed);
+
+        uiPanel.add(new SpaceHolder());
+
+        ValueSelector frameRate = new ValueSelector(1.0f, 0.1f)
+                .setTitlePercentage(0.3f)
+                .roundTo(-1)
+                .setTitle("fps")
+                .setRange(60, 300)
+                .setValue(60);
+        frameRate.link(() -> {
+            frameRate(frameRate.getIntValue());
+        });
+        uiPanel.add(frameRate);
+
+        uiPanel.add(new SpaceHolder());
+
+        ValueSelector rows = new ValueSelector(1.0f, 0.1f)
+                .setTitlePercentage(0.3f)
+                .roundTo(-1)
+                .setTitle("rows")
+                .setRange(10, 120)
+                .setValue(Main.rows);
+        uiPanel.add(rows.link(() -> Main.rows = rows.getIntValue()));
+
+        ValueSelector cols = new ValueSelector(1.0f, 0.1f)
+                .setTitlePercentage(0.3f)
+                .roundTo(-1)
+                .setTitle("cols")
+                .setRange(10, 160)
+                .setValue(Main.cols);
+        uiPanel.add(cols.link(() -> Main.cols = cols.getIntValue()));
+
+        uiPanel.add(new Button(1.0f, 0.05f).setContent("Update").onClick(() -> {
+            getContext().setDimension(Main.rows, Main.cols);
+        })).attachMethod(() -> {
+            if (Math.abs(mouseX - width) < 10) {
+                uiPanel.setVisible(true);
+                Container.refresh();
+            } else if (uiPanel.isVisible && width - parent.spacing * 2 - uiPanel.w > mouseX) {
+                uiPanel.setVisible(false);
+                Container.refresh();
+            }
+        }).setVisible(false);
+
+
+    }
+
+    private Context getContext() {
+        return (Context) JNode.get("#CONTEXT").get(0);
     }
 
     public void draw() {

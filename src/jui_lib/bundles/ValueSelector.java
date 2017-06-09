@@ -112,6 +112,7 @@ public class ValueSelector extends VBox {
                 valueSlider.setValue(valueSlider.valueHigh);
                 return;
             }
+            textInput.setStaticContent(round(Float.valueOf(textInput.getStaticContent())));
             valueSlider.setValue(textInput.getFloatValue());
             if (linkedMethod != null)
                 linkedMethod.run();
@@ -149,11 +150,7 @@ public class ValueSelector extends VBox {
      */
     public ValueSelector setValue(float val) {
         valueSlider.setValue(val);
-        if (val < valueSlider.valueLow)
-            textInput.setStaticContent(valueSlider.valueLow + "");
-        else if (val > valueSlider.valueHigh)
-            textInput.setStaticContent(valueSlider.valueHigh + "");
-        textInput.setStaticContent(val + "");
+        textInput.setStaticContent(round(val));
         return this;
     }
 

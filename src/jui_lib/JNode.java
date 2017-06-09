@@ -316,9 +316,10 @@ public class JNode {
                     c.arrange();
                 }
             } else {
-                container.remove(obj);
+                //container.remove(obj); //TODO: debug -> stack overflow error
             }
         }
+
         parent.loop();
     }
 
@@ -373,6 +374,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mousePressed();
+            if (i>=displayables.size()) break;
         }
     }
 
@@ -382,6 +384,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mouseReleased();
+            if (i>=displayables.size()) break; //fixed!!! June 9th, breakthrough!
         }
     }
 
@@ -391,6 +394,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mouseDragged();
+            if (i>=displayables.size()) break;
         }
     }
 
@@ -400,6 +404,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mouseHeld();
+            if (i>=displayables.size()) break;
         }
     }
 
@@ -420,6 +425,7 @@ public class JNode {
                 if (displayable instanceof KeyControl) {
                     KeyControl c = (KeyControl) displayable;
                     c.keyPressed();
+                    if (i>=displayables.size()) break;
                 }
             }
         }
@@ -434,6 +440,7 @@ public class JNode {
                 if (displayable instanceof KeyControl) {
                     KeyControl c = (KeyControl) displayable;
                     c.keyReleased();
+                    if (i>=displayables.size()) break;
                 }
             }
         }

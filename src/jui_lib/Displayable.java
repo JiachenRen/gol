@@ -11,7 +11,7 @@ import java.util.ArrayList;
 //add setBackground. Task completed. Background enum added April 22nd.
 //modified April 22nd. Took me half an hour, I eliminated all rounding errors for containers!
 //primitive type for coordinate and dimension is changed from int to float. Proved to be helpful!
-//refresh requesting technique applied April 23rd
+//update requesting technique applied April 23rd
 //TODO: add inheritStyle(), clone();
 
 /**
@@ -43,7 +43,7 @@ public class Displayable implements MouseControl, Serializable {
     public PImage backgroundImg;
     private Runnable attachedMethod;
 
-    private boolean refreshRequested;
+    private boolean updateRequested;
 
     public boolean isRounded = JNode.ROUNDED;
     public boolean isRelative, isUndeclared;
@@ -124,21 +124,21 @@ public class Displayable implements MouseControl, Serializable {
 
     public Displayable setRelative(boolean temp) {
         isRelative = temp;
-        refreshRequested = true;
+        updateRequested = true;
         return this;
     }
 
     public Displayable setRelativeW(float temp) {
         relativeW = temp;
         isUndeclared = false;
-        refreshRequested = true;/*this might take long. Consider optimization.*/
+        updateRequested = true;/*this might take long. Consider optimization.*/
         return this;
     }
 
     public Displayable setRelativeH(float temp) {
         relativeH = temp;
         isUndeclared = false;
-        refreshRequested = true;
+        updateRequested = true;
         return this;
     }
 
@@ -152,6 +152,7 @@ public class Displayable implements MouseControl, Serializable {
 
     public Displayable setVisible(boolean temp) {
         isVisible = temp;
+        requestUpdate();
         return this;
     }
 
@@ -463,12 +464,12 @@ public class Displayable implements MouseControl, Serializable {
         this.h = h;
     }
 
-    boolean refreshRequested() {
-        return refreshRequested;
+    boolean updateRequested() {
+        return updateRequested;
     }
 
-    void requestProcessed() {
-        refreshRequested = false;
+    void updateProcessed() {
+        updateRequested = false;
     }
 
     public Displayable setBackgroundStyle(JStyle backgroundStyle) {
@@ -596,6 +597,11 @@ public class Displayable implements MouseControl, Serializable {
         this.setRelativeW(other.relativeW);
         this.setRelative(other.isRelative);
         this.setUndeclared(other.isUndeclared);
+        return this;
+    }
+
+    public Displayable requestUpdate() {
+        updateRequested = true;
         return this;
     }
 

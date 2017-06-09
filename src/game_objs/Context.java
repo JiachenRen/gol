@@ -25,11 +25,12 @@ public class Context extends Displayable {
      * @param rows    number of rows
      * @param columns number of columns
      */
-    public Context(int rows, int columns) {
+    public Context(String id, int rows, int columns) {
         super();
+        this.setId(id);
         this.rows = rows;
         this.columns = columns;
-        millisPerIteration = 100; //defaults to one iteration per 100 milliseconds.
+        millisPerIteration = 10; //defaults to one iteration per 100 milliseconds.
         initializeCellMatrix();
         initEventListeners();
     }
@@ -71,7 +72,12 @@ public class Context extends Displayable {
      * the references to the cells are removed from JNode.
      */
     @Override
-    public void finalize() {
+    public void finalize() throws Throwable {
+        super.finalize();
+        this.dispose();
+    }
+
+    private void dispose() {
         getParent().noLoop();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
@@ -187,7 +193,7 @@ public class Context extends Displayable {
         int count = 0;
         for (int i = -1; i <= 1; i++) {
             for (int q = -1; q <= 1; q++) {
-                if (i == 0 && q == 0 ) continue;
+                if (i == 0 && q == 0) continue;
                 if (getCell(row + i, col + q).isAlive())
                     count++;
             }
@@ -229,6 +235,20 @@ public class Context extends Displayable {
     public void toggleAutoIteration() {
         EventListener iterator = this.getEventListener("@ITERATOR");
         iterator.setDisabled(!iterator.isDisabled());
+    }
+
+    /**
+     * updates the dimension of the cell matrix.
+     *
+     * @param rows number of rows
+     * @param cols number of columns
+     */
+    public void setDimension(int rows, int cols) {
+        this.dispose();
+        this.rows = rows;
+        this.columns = cols;
+        initializeCellMatrix();
+        requestUpdate();
     }
 
 }
