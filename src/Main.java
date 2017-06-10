@@ -7,16 +7,24 @@ import processing.core.PApplet;
 public class Main extends PApplet {
     private static int rows = 60;
     private static int cols = 80;
+    private static String sketchRenderer;
+    private static boolean smooth;
+    private static boolean retina;
 
     public static void main(String[] args) {
+        sketchRenderer = args.length > 0 ? args[0] : "processing.awt.PGraphicsJava2D";
+        smooth = args.length > 1 && args[1].equals("1");
+        retina = args.length > 2 && args[2].equals("1");
         String sketch = Thread.currentThread().getStackTrace()[1].getClassName();
         Thread proc = new Thread(() -> PApplet.main(sketch));
         proc.start();
     }
 
     public void settings() {
-        size(900, 600, FX2D);
-        noSmooth();
+        size(900, 600, sketchRenderer);
+        System.out.println(sketchRenderer());
+        if (retina) pixelDensity(2);
+        if (!smooth) noSmooth(); //sometimes noSmooth works better.
     }
 
     public void setup() {
@@ -97,7 +105,7 @@ public class Main extends PApplet {
         uiPanel.add(new Button(1.0f, 0.05f).setContent("Update").onClick(() -> {
             getContext().setDimension(Main.rows, Main.cols);
         })).attachMethod(() -> {
-            if (Math.abs(mouseX - width) < 10) {
+            if (!mousePressed && !uiPanel.isVisible && Math.abs(mouseX - width) < 10) {
                 uiPanel.setVisible(true);
                 Container.refresh();
             } else if (uiPanel.isVisible && width - parent.spacing * 2 - uiPanel.w > mouseX) {
