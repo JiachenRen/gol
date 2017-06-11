@@ -140,7 +140,7 @@ public class HBox extends Container {
                 continue;
             occupied += availableWidth() * displayable.getRelativeW();
         }
-        if (occupied > availableWidth()) {
+        if (occupied > availableWidth() && isDebugEnabled()) {
             String errorMessage = ": no enough space for all declared displayables." +
                     " Check relative width assignments and make sure that the sum doesn't exceed 1.0f";
             System.err.println(id + errorMessage);

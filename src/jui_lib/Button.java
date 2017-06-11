@@ -1,9 +1,6 @@
 package jui_lib;
 
 
-import jui_lib.bundles.ValueSelector;
-import processing.core.PConstants;
-
 import static processing.core.PConstants.CENTER;
 
 //code refactored Jan 30th.

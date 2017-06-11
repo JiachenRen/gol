@@ -4,6 +4,17 @@ import jui_lib.Displayable;
 import jui_lib.Event;
 import jui_lib.EventListener;
 import jui_lib.JNode;
+import processing.core.PApplet;
+import processing.core.PConstants;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 
 /**
  * Created by Jiachen on 6/8/17.
@@ -18,6 +29,10 @@ public class Context extends Displayable {
     private int columns;
     private int millisPerIteration;
     private long lastIteratedMillis;
+    private float gridRootX[];
+    private float gridRootY[];
+    private boolean cellGridVisible;
+    private ArrayList<Cell> activeCells;
 
     /**
      * constructs a dimensionless Context obj that hosts the Game of Life.
@@ -31,6 +46,10 @@ public class Context extends Displayable {
         this.rows = rows;
         this.columns = columns;
         millisPerIteration = 10; //defaults to one iteration per 100 milliseconds.
+        cellGridVisible = true;
+        setBackgroundVisible(false);
+        setContourThickness(0.2f);
+        //setContourVisible(true);
         initializeCellMatrix();
         initEventListeners();
     }
@@ -55,9 +74,10 @@ public class Context extends Displayable {
      */
     private void initializeCellMatrix() {
         cellMatrix = new Cell[rows][columns];
+        activeCells = new ArrayList<>();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
-                cellMatrix[r][c] = new Cell(false);
+                cellMatrix[r][c] = new Cell(this, false, r, c);
                 cellMatrix[r][c].setId("#" + this.id + " " + r + " " + c);
                 cellMatrix[r][c].setRelative(false);
                 JNode.add(cellMatrix[r][c]);
@@ -132,7 +152,7 @@ public class Context extends Displayable {
         float cellWidth = cellWidth();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
-                cellMatrix[r][c].resize(cellWidth, cellWidth);
+                cellMatrix[r][c].resize(cellWidth + 1 - contourThickness, cellWidth + 1 - contourThickness);
             }
         }
     }
@@ -144,20 +164,43 @@ public class Context extends Displayable {
     }
 
     /**
-     * Rearrange each of the cells to designated coordinate on screen.
+     * Rearrange each of the cells to designated coordinate on screen
+     * and updates the root coordinates for drawing the grid. Wastes a little
+     * bit of memory to enhance performance.
      */
     private void relocateCells() {
         float cellWidth = cellWidth();
-        float diffWidth = Math.abs(w - cellMatrixWidth());
-        float diffHeight = Math.abs(h - cellMatrixHeight());
-        boolean widthFilled = !(diffWidth > diffHeight);
-        float offsetX = widthFilled ? x : x + w / 2 - cellMatrixWidth() / 2;
-        float offsetY = widthFilled ? y + h / 2 - cellMatrixHeight() / 2 : y;
+        float offsetX = getCellMatrixX();
+        float offsetY = getCellMatrixY();
+
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
                 cellMatrix[r][c].relocate(offsetX + c * cellWidth, offsetY + r * cellWidth);
             }
         }
+
+        //updates the grid root coordinates.
+        gridRootX = new float[columns - 1];
+        for (int c = 1; c < columns; c++) {
+            gridRootX[c - 1] = offsetX + c * cellWidth;
+        }
+
+        gridRootY = new float[rows - 1];
+        for (int r = 1; r < rows; r++) {
+            gridRootY[r - 1] = offsetY + r * cellWidth;
+        }
+    }
+
+    private float getCellMatrixX() {
+        float diffWidth = Math.abs(w - cellMatrixWidth());
+        float diffHeight = Math.abs(h - cellMatrixHeight());
+        return !(diffWidth > diffHeight) ? x : x + w / 2 - cellMatrixWidth() / 2;
+    }
+
+    private float getCellMatrixY() {
+        float diffWidth = Math.abs(w - cellMatrixWidth());
+        float diffHeight = Math.abs(h - cellMatrixHeight());
+        return !(diffWidth > diffHeight) ? y + h / 2 - cellMatrixHeight() / 2 : y;
     }
 
     /**
@@ -165,6 +208,8 @@ public class Context extends Displayable {
      */
     @Override
     public void display() {
+        if (cellGridVisible)
+            drawMatrixGrid();
     }
 
     /**
@@ -213,6 +258,17 @@ public class Context extends Displayable {
         boolean[][] result = new boolean[rows][columns];
 
         //generate the result of this iteration
+        for (Cell cell : activeCells) {
+            int numAlive = numCellsAlive(cell.row, cell.col);
+            if (cell.isAlive())
+                result[cell.row][cell.col] = numAlive > 1 && numAlive < 4;
+            else result[cell.row][cell.col] = numAlive == 3;
+        }
+        //System.out.println(activeCells.size());
+
+
+
+        /*
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
                 int numAlive = numCellsAlive(r, c);
@@ -221,11 +277,25 @@ public class Context extends Displayable {
                 else result[r][c] = numAlive == 3;
             }
         }
+        */
 
+        activeCells = new ArrayList<>();
         //updates the cells according to the result obtained
         for (int r = 0; r < rows; r++)
-            for (int c = 0; c < columns; c++)
+            for (int c = 0; c < columns; c++) {
                 cellMatrix[r][c].setAlive(result[r][c]);
+                if (result[r][c]) setActive(r, c);
+            }
+    }
+
+    void setActive(int row, int col) {
+        for (int i = -1; i <= 1; i++) {
+            for (int q = -1; q <= 1; q++) {
+                Cell designated = getCell(row + i, col + q);
+                if (!activeCells.contains(designated))
+                    activeCells.add(designated);
+            }
+        }
     }
 
     public void setMillisPerIteration(int millis) {
@@ -251,4 +321,74 @@ public class Context extends Displayable {
         requestUpdate();
     }
 
+    /**
+     * draws the gird for the cell matrix.
+     */
+    private void drawMatrixGrid() {
+        super.applyBackgroundStyle();
+        float offsetX = getCellMatrixX();
+        float offsetY = getCellMatrixY();
+        float matrixHeight = cellMatrixHeight();
+        float matrixWidth = cellMatrixWidth();
+
+        getParent().strokeWeight(contourThickness);
+        getParent().rectMode(PConstants.CORNER);
+        getParent().rect(offsetX, offsetY, matrixWidth, matrixHeight);
+        for (float i : gridRootX) {
+            getParent().line(i, offsetY, i, offsetY + matrixHeight);
+        }
+        for (float i : gridRootY) {
+            getParent().line(offsetX, i, offsetX + matrixWidth, i);
+        }
+    }
+
+    @Override
+    public Displayable setContourThickness(float temp) {
+        if (temp > 1) throw new IllegalArgumentException("grid thickness cannot be larger than 1");
+        super.setContourThickness(temp);
+        return this;
+    }
+
+    /**
+     * TODO: implement, java doc
+     *
+     * @param file the file (configuration or saved game) to be loaded
+     */
+    public void load(File file) {
+        String lines[] = PApplet.loadStrings(file);
+        if (lines[0].equals("#saved")) {
+            System.out.println("loaded saved game:" + file.getName());
+            String dim[] = lines[1].substring(lines[1].indexOf(":") + 1).split(",");
+            this.setDimension(Integer.valueOf(dim[0]), Integer.valueOf(dim[1]));
+            String[] activeCellCoordinates = lines[2].substring(lines[2].indexOf(":") + 1).split(";");
+            for (String coordinate : activeCellCoordinates) {
+                String[] pos = coordinate.split(",");
+                cellMatrix[Integer.valueOf(pos[0])][Integer.valueOf(pos[1])].setAlive(true);
+            }
+        }
+    }
+
+    public void save(String fileName) {
+        System.out.println("saved: " + fileName);
+        try {
+            PrintWriter writer = new PrintWriter(getSavedFilesPath() + "/" + fileName, "UTF-8");
+            writer.println("#saved");
+            writer.println("~ dim:" + rows + "," + columns);
+            writer.print("~ pos:");
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < columns; c++) {
+                    if (cellMatrix[r][c].isAlive())
+                        writer.print(r + "," + c + ";");
+                }
+            }
+            writer.close();
+        } catch (IOException e) {
+            // do something
+        }
+
+    }
+
+    public static String getSavedFilesPath() {
+        return JNode.getParent().sketchPath() + "/src/game_objs/saved";
+    }
 }

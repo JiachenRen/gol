@@ -47,6 +47,7 @@ public class Displayable implements MouseControl, Serializable {
 
     public boolean isRounded = JNode.ROUNDED;
     public boolean isRelative, isUndeclared;
+    public boolean backgroundVisible;
 
     public String id;
 
@@ -56,6 +57,7 @@ public class Displayable implements MouseControl, Serializable {
 
     {
         eventListeners = new ArrayList<>();
+        backgroundVisible = true;
     }
 
     public enum ImgStyle {
@@ -245,7 +247,7 @@ public class Displayable implements MouseControl, Serializable {
         return this;
     }
 
-    public Displayable setBackgroundColor(int r, int g, int b) {
+    public Displayable setBackgroundColor(float r, float g, float b) {
         backgroundColor = JNode.getParent().color(r, g, b);
         return this;
     }
@@ -390,6 +392,10 @@ public class Displayable implements MouseControl, Serializable {
     }
 
     public void applyBackgroundStyle() {
+        if (!backgroundVisible) {
+            getParent().noFill();
+            return;
+        }
         switch (backgroundStyle) {
             case CONSTANT:
                 getParent().fill(backgroundColor);
@@ -474,6 +480,11 @@ public class Displayable implements MouseControl, Serializable {
 
     public Displayable setBackgroundStyle(JStyle backgroundStyle) {
         this.backgroundStyle = backgroundStyle;
+        return this;
+    }
+
+    public Displayable setBackgroundVisible(boolean temp) {
+        this.backgroundVisible = temp;
         return this;
     }
 
@@ -580,6 +591,7 @@ public class Displayable implements MouseControl, Serializable {
         this.setColorMode(other.colorMode);
         this.setRounding(other.rounding);
         this.setRounded(other.isRounded);
+        this.setBackgroundVisible(other.backgroundVisible);
         return this;
     }
 

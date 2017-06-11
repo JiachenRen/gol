@@ -16,6 +16,7 @@ public abstract class Container extends Displayable {
     public float spacing = JNode.CONTAINER_SPACING; //modified Jan 26th. Refactored April 26th.
     public int alignH, alignV;
     public boolean collapseInvisible;
+    private boolean debugEnabled;
     private boolean matchWindowDimension;
 
     {
@@ -142,14 +143,18 @@ public abstract class Container extends Displayable {
     public abstract float undeclaredSpace();
 
     public Container add(Displayable displayable) {
+        this.add(displayables.size(), displayable);
+        return this;
+    }
+
+    public Container add(int index, Displayable displayable) {
         displayable.setRelative(true);
         if (!JNode.getDisplayables().contains(displayable))
             JNode.add(displayable);
-        this.displayables.add(displayable);
-        //intended to synchronize the size add the sub-class objects according to their
-        syncSize();
-        //intended to arrange the coordinates of the sub-class objects accordingly with their width.
-        arrange();
+        if (!displayables.contains(displayable))
+            this.displayables.add(index, displayable);
+        this.syncSize();
+        this.arrange();
         return this;
     }
 
@@ -452,6 +457,15 @@ public abstract class Container extends Displayable {
             if (displayable.getId().endsWith(id))
                 this.remove(displayable);
         }
+    }
+
+    public boolean isDebugEnabled() {
+        return debugEnabled;
+    }
+
+    public Container setDebugEnabled(boolean temp) {
+        this.debugEnabled = temp;
+        return this;
     }
 }
 

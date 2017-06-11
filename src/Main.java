@@ -1,8 +1,12 @@
 
 import game_objs.Context;
 import jui_lib.*;
-import jui_lib.bundles.ValueSelector;
+import jui_lib.bundles.AbstractValueSelector;
+import jui_lib.bundles.CompositeValueSelector;
 import processing.core.PApplet;
+
+import java.io.File;
+import java.util.ArrayList;
 
 public class Main extends PApplet {
     private static int rows = 60;
@@ -10,6 +14,7 @@ public class Main extends PApplet {
     private static String sketchRenderer;
     private static boolean smooth;
     private static boolean retina;
+    private static Label modelLabel;
 
     public static void main(String[] args) {
         sketchRenderer = args.length > 0 ? args[0] : "processing.awt.PGraphicsJava2D";
@@ -32,16 +37,115 @@ public class Main extends PApplet {
         surface.setTitle("Game of Life");
 
         JNode.init(this); // always to be used as the first line inside setup
+        JNode.DISPLAY_CONTOUR = false;
+        JNode.CONTOUR_THICKNESS = 0.5f;
+        JNode.BACKGROUND_COLOR = color(255);
+        JNode.ROUNDED = false;
+        JNode.ROUNDING = 20;
+
+        //setting up models
+        modelLabel = (Label) new Label().setAlign(CENTER).setContourVisible(false).setBackgroundColor(0, 0, 0, 25);
+
 
         HBox parent = new HBox();
         parent.matchWindowDimension(true)
                 .setCollapseInvisible(true);
         JNode.add(parent);
 
+
+        VBox leftUiPanel = (VBox) new VBox(0.1f, 1.0f).setCollapseInvisible(true);
+        leftUiPanel.attachMethod(() -> {
+            if (mousePressed) return;
+            if (!leftUiPanel.isVisible && mouseX < 10) {
+                leftUiPanel.setVisible(true);
+                Container.refresh();
+            } else if (leftUiPanel.isVisible && mouseX > leftUiPanel.w + parent.spacing) {
+                leftUiPanel.setVisible(false);
+                Container.refresh();
+            }
+        }).setVisible(false);
+        parent.add(leftUiPanel);
+
+        leftUiPanel.add(new Label(1.0f, 0.05f).setContent("Load Saved").inheritOutlook(modelLabel));
+
+        TextInput filterer = new TextInput(1.0f, 0.05f).setDefaultContent("");
+        filterer.setIsFocusedOn(true).onKeyTyped(() -> {
+            ArrayList<Button> filtered = new ArrayList<>();
+            ArrayList<Button> savedButtons = getSavedButtons();
+            savedButtons.forEach(button -> {
+                if (button.getContent().startsWith(filterer.getContent()))
+                    if (!filtered.contains(button))
+                        filtered.add(button);
+            });
+            savedButtons.forEach(button -> {
+                if (button.getContent().contains(filterer.getContent()))
+                    if (!filtered.contains(button))
+                        filtered.add(button);
+            });
+            savedButtons.forEach(button -> button.setVisible(false));
+            filtered.forEach(button -> button.setVisible(true));
+        });
+        leftUiPanel.add(filterer);
+
+        File folder = new File(Context.getSavedFilesPath());
+        File[] listOfFiles = folder.listFiles();
+        assert listOfFiles != null;
+        int maxSavedNum = 0;
+        for (File file : listOfFiles) {
+            if (!file.isFile()) continue;
+            if (file.getName().startsWith("saved_game_")) {
+                int num = Integer.valueOf(file.getName().substring(11));
+                maxSavedNum = num > maxSavedNum ? num : maxSavedNum;
+            }
+            leftUiPanel.add(new Button(1.0f, 0.05f)
+                    .setContent(file.getName())
+                    .onClick(() -> {
+                        getContext().load(file);
+                    }).setVisible(false)
+                    .setId("@SAVED")
+            );
+        }
+
+        leftUiPanel.add(new SpaceHolder());
+        leftUiPanel.add(new Label(1.0f, 0.05f).setContent("File Name").inheritOutlook(modelLabel));
+
+        TextInput fileName = new TextInput(1.0f, 0.05f).setDefaultContent("saved_game_" + (maxSavedNum + 1));
+        leftUiPanel.add(fileName.setId("@FILE_NAME"));
+
+        Button save = new Button(1.0f, 0.05f).setContent("Save").onClick(() -> {
+            getContext().save(fileName.getContent());
+            ArrayList<Button> savedButtons = this.getSavedButtons();
+            boolean overridden = false;
+            for (Button button : savedButtons)
+                if (button.getId().equals(fileName.getContent()))
+                    overridden = true;
+
+            if (overridden) return;
+            File folder_ = new File(Context.getSavedFilesPath());
+            File[] listOfFiles_ = folder_.listFiles();
+            assert listOfFiles_ != null;
+            for (File file : listOfFiles_)
+                if (file.getName().equals(fileName.getContent()))
+                    leftUiPanel.add(2, new Button(1.0f, 0.05f)
+                            .setContent(fileName.getContent())
+                            .onClick(() -> {
+                                getContext().load(file);
+                            }).setVisible(true)
+                            .setId("@SAVED")
+                    );
+
+            if (fileName.getDefaultContent().equals(fileName.getContent())) return;
+            int newFileIndex = parseInt(fileName.getDefaultContent().substring(11)) + 1;
+            fileName.setDefaultContent("saved_game_" + newFileIndex);
+        });
+        leftUiPanel.add(save);
+
+
         Context gameContext = new Context("#CONTEXT", rows, cols);
         parent.add(gameContext);
 
-        VBox uiPanel = new VBox(0.1f, 1.0f);
+        VBox uiPanel = new VBox(0, 1.0f);
+        uiPanel.setDebugEnabled(false);
         parent.add(uiPanel);
 
         Button step = new Button(1.0f, 0.05f)
@@ -60,7 +164,7 @@ public class Main extends PApplet {
 
         uiPanel.add(new SpaceHolder());
 
-        ValueSelector speed = new ValueSelector(1.0f, 0.1f)
+        AbstractValueSelector speed = new CompositeValueSelector(1.0f, 0.1f)
                 .setTitlePercentage(0.3f)
                 .roundTo(-1)
                 .setTitle("ms/i")
@@ -68,12 +172,12 @@ public class Main extends PApplet {
                 .setValue(10);
         speed.link(() -> {
             getContext().setMillisPerIteration(speed.getIntValue());
-        });
+        }).getTitleLabel().inheritOutlook(modelLabel);
         uiPanel.add(speed);
 
         uiPanel.add(new SpaceHolder());
 
-        ValueSelector frameRate = new ValueSelector(1.0f, 0.1f)
+        AbstractValueSelector frameRate = new CompositeValueSelector(1.0f, 0.1f)
                 .setTitlePercentage(0.3f)
                 .roundTo(-1)
                 .setTitle("fps")
@@ -81,40 +185,61 @@ public class Main extends PApplet {
                 .setValue(60);
         frameRate.link(() -> {
             frameRate(frameRate.getIntValue());
-        });
+        }).getTitleLabel().inheritOutlook(modelLabel);
         uiPanel.add(frameRate);
 
         uiPanel.add(new SpaceHolder());
 
-        ValueSelector rows = new ValueSelector(1.0f, 0.1f)
+        AbstractValueSelector rows = new CompositeValueSelector(1.0f, 0.1f)
                 .setTitlePercentage(0.3f)
                 .roundTo(-1)
                 .setTitle("rows")
-                .setRange(10, 120)
+                .setRange(10, 300)
                 .setValue(Main.rows);
-        uiPanel.add(rows.link(() -> Main.rows = rows.getIntValue()));
+        rows.getTitleLabel().inheritOutlook(modelLabel);
+        uiPanel.add(rows.link(() -> {
+            Main.rows = rows.getIntValue();
+        }));
 
-        ValueSelector cols = new ValueSelector(1.0f, 0.1f)
+        AbstractValueSelector cols = new CompositeValueSelector(1.0f, 0.1f)
                 .setTitlePercentage(0.3f)
                 .roundTo(-1)
                 .setTitle("cols")
-                .setRange(10, 160)
+                .setRange(10, 300)
                 .setValue(Main.cols);
+        cols.getTitleLabel().inheritOutlook(modelLabel);
         uiPanel.add(cols.link(() -> Main.cols = cols.getIntValue()));
 
         uiPanel.add(new Button(1.0f, 0.05f).setContent("Update").onClick(() -> {
             getContext().setDimension(Main.rows, Main.cols);
         })).attachMethod(() -> {
-            if (!mousePressed && !uiPanel.isVisible && Math.abs(mouseX - width) < 10) {
+            if (mousePressed) return;
+            if (Math.abs(mouseX - width) < 10) {
                 uiPanel.setVisible(true);
+                if (uiPanel.getRelativeW() < 0.1f)
+                    uiPanel.setRelativeW(uiPanel.getRelativeW() + 0.01f);
+                //System.out.println(uiPanel.relativeW);
                 Container.refresh();
-            } else if (uiPanel.isVisible && width - parent.spacing * 2 - uiPanel.w > mouseX) {
-                uiPanel.setVisible(false);
+            } else if (width - parent.spacing * 2 - uiPanel.w > mouseX) {
+                if (!uiPanel.isVisible()) return;
+                if (uiPanel.getRelativeW() == 0) {
+                    uiPanel.setVisible(false);
+                }
+                if (uiPanel.getRelativeW() > 0) {
+                    uiPanel.setRelativeW(uiPanel.getRelativeW() - 0.01f);
+                    if (uiPanel.getRelativeW() < 0)
+                        uiPanel.setRelativeW(0);
+                }
                 Container.refresh();
             }
         }).setVisible(false);
 
 
+    }
+
+    @SuppressWarnings("unchecked")
+    private ArrayList<Button> getSavedButtons() {
+        return (ArrayList<Button>) JNode.get("@SAVED");
     }
 
     private Context getContext() {

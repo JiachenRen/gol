@@ -138,7 +138,7 @@ public class VBox extends Container {
                 continue;
             occupied += availableHeight() * displayable.getRelativeH();
         }
-        if (occupied > availableHeight()) {
+        if (occupied > availableHeight() && isDebugEnabled()) {
             String errorMessage = ": no enough space for all declared displayables." +
                     " Check relative height assignments and make sure that the sum doesn't exceed 1.0f";
             System.err.println(id + errorMessage);

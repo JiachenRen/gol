@@ -10,30 +10,26 @@ import jui_lib.JNode;
  */
 public class Cell extends Displayable {
     private boolean alive;
-    private static int colorAlive;
-    private static int colorDead;
     private boolean prevState;
-
-    /*
-    default color for a cell that is alive/dead.
-     */
-    static {
-        colorAlive = JNode.getParent().color(0);
-        colorDead = JNode.getParent().color(255);
-    }
+    private Context context;
+    int row;
+    int col;
 
     /**
      * constructs a cell obj
      *
      * @param alive whether or not the cell initializes to be alive
      */
-    public Cell(boolean alive) {
+    public Cell(Context context, boolean alive, int row, int col) {
         super();
         setAlive(alive);
-        setContourVisible(true);
-        setContourThickness(0.2f);
+        setBackgroundColor(mouseOverBackgroundColor);
         setRounded(false);
+        setContourVisible(false);
         initEventListeners();
+        this.context = context;
+        this.row = row;
+        this.col = col;
     }
 
     private void initEventListeners() {
@@ -57,16 +53,13 @@ public class Cell extends Displayable {
 
     public void setAlive(boolean alive) {
         this.alive = alive;
-        setBackgroundColor(alive ? colorAlive : colorDead);
+        if (alive) context.setActive(row,col);
+        setBackgroundVisible(alive);
     }
 
-    public static void setColorAlive(int color) {
-        Cell.colorAlive = color;
+    @Override
+    public void resize(float w, float h){
+        super.resize(w,h);
+        this.setRounding(w);
     }
-
-    public static void setColorDead(int color) {
-        Cell.colorDead = color;
-    }
-
-
 }
