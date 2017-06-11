@@ -6,6 +6,7 @@ import jui_lib.bundles.CompositeValueSelector;
 import processing.core.PApplet;
 
 import java.io.File;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 
 public class Main extends PApplet {
@@ -53,14 +54,23 @@ public class Main extends PApplet {
         JNode.add(parent);
 
 
-        VBox leftUiPanel = (VBox) new VBox(0.1f, 1.0f).setCollapseInvisible(true);
+        VBox leftUiPanel = (VBox) new VBox(0, 1.0f).setCollapseInvisible(true);
         leftUiPanel.attachMethod(() -> {
             if (mousePressed) return;
-            if (!leftUiPanel.isVisible && mouseX < 10) {
+            if (mouseX < 10) {
                 leftUiPanel.setVisible(true);
+                if (leftUiPanel.getRelativeW() < 0.1f)
+                    leftUiPanel.setRelativeW(leftUiPanel.getRelativeW() + 0.01f);
                 Container.refresh();
-            } else if (leftUiPanel.isVisible && mouseX > leftUiPanel.w + parent.spacing) {
-                leftUiPanel.setVisible(false);
+            } else if (leftUiPanel.isVisible() && mouseX > leftUiPanel.w + parent.spacing) {
+                if (leftUiPanel.getRelativeW() == 0) {
+                    leftUiPanel.setVisible(false);
+                }
+                if (leftUiPanel.getRelativeW() > 0) {
+                    leftUiPanel.setRelativeW(leftUiPanel.getRelativeW() - 0.01f);
+                    if (leftUiPanel.getRelativeW() < 0)
+                        leftUiPanel.setRelativeW(0);
+                }
                 Container.refresh();
             }
         }).setVisible(false);
@@ -87,11 +97,8 @@ public class Main extends PApplet {
         });
         leftUiPanel.add(filterer);
 
-        File folder = new File(Context.getSavedFilesPath());
-        File[] listOfFiles = folder.listFiles();
-        assert listOfFiles != null;
         int maxSavedNum = 0;
-        for (File file : listOfFiles) {
+        for (File file : Context.listOfFiles()) {
             if (!file.isFile()) continue;
             if (file.getName().startsWith("saved_game_")) {
                 int num = Integer.valueOf(file.getName().substring(11));
@@ -121,10 +128,7 @@ public class Main extends PApplet {
                     overridden = true;
 
             if (overridden) return;
-            File folder_ = new File(Context.getSavedFilesPath());
-            File[] listOfFiles_ = folder_.listFiles();
-            assert listOfFiles_ != null;
-            for (File file : listOfFiles_)
+            for (File file : Context.listOfFiles())
                 if (file.getName().equals(fileName.getContent()))
                     leftUiPanel.add(2, new Button(1.0f, 0.05f)
                             .setContent(fileName.getContent())

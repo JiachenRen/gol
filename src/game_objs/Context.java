@@ -10,10 +10,7 @@ import processing.core.PConstants;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 
 /**
@@ -33,6 +30,7 @@ public class Context extends Displayable {
     private float gridRootY[];
     private boolean cellGridVisible;
     private ArrayList<Cell> activeCells;
+    private static boolean runningAsApplication;
 
     /**
      * constructs a dimensionless Context obj that hosts the Game of Life.
@@ -101,7 +99,8 @@ public class Context extends Displayable {
         getParent().noLoop();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
-                JNode.remove("#" + this.id + " " + r + " " + c);
+                //JNode.remove("#" + this.id + " " + r + " " + c);
+                JNode.remove(cellMatrix[r][c]);
             }
         }
         getParent().loop();
@@ -152,7 +151,7 @@ public class Context extends Displayable {
         float cellWidth = cellWidth();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
-                cellMatrix[r][c].resize(cellWidth + 1 - contourThickness, cellWidth + 1 - contourThickness);
+                cellMatrix[r][c].resize(cellWidth, cellWidth);
             }
         }
     }
@@ -314,7 +313,9 @@ public class Context extends Displayable {
      * @param cols number of columns
      */
     public void setDimension(int rows, int cols) {
-        this.dispose();
+        //System.out.println("disposing");
+        this.dispose(); //TODO: too slow!
+        //System.out.println("disposed");
         this.rows = rows;
         this.columns = cols;
         initializeCellMatrix();
@@ -363,6 +364,7 @@ public class Context extends Displayable {
             String[] activeCellCoordinates = lines[2].substring(lines[2].indexOf(":") + 1).split(";");
             for (String coordinate : activeCellCoordinates) {
                 String[] pos = coordinate.split(",");
+                if (pos[0].equals("") || pos[1].equals("")) break;
                 cellMatrix[Integer.valueOf(pos[0])][Integer.valueOf(pos[1])].setAlive(true);
             }
         }
@@ -371,7 +373,8 @@ public class Context extends Displayable {
     public void save(String fileName) {
         System.out.println("saved: " + fileName);
         try {
-            PrintWriter writer = new PrintWriter(getSavedFilesPath() + "/" + fileName, "UTF-8");
+            String path = runningAsApplication ? getAlternativePath("saved") : getFilesPath("saved");
+            PrintWriter writer = new PrintWriter(path + "/" + fileName, "UTF-8");
             writer.println("#saved");
             writer.println("~ dim:" + rows + "," + columns);
             writer.print("~ pos:");
@@ -388,7 +391,30 @@ public class Context extends Displayable {
 
     }
 
-    public static String getSavedFilesPath() {
-        return JNode.getParent().sketchPath() + "/src/game_objs/saved";
+    private static String getFilesPath(String fileName) {
+        return JNode.getParent().sketchPath() + "/src/game_objs/" + fileName;
+    }
+
+    private static String getAlternativePath(String fileName) {
+        runningAsApplication = true;
+        try {
+            String pathToPApplet = PApplet.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+            int index = pathToPApplet.indexOf("Contents");
+            return pathToPApplet.substring(0, index + "Contents".length()) + "/saved_configs/" + fileName;
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static File[] listOfFiles() {
+        File folder = new File(Context.getFilesPath("saved"));
+        File[] listOfFiles = folder.listFiles();
+        if (listOfFiles == null) {
+            @SuppressWarnings("ConstantConditions") File alternateFolder = new File(Context.getAlternativePath("saved"));
+            listOfFiles = alternateFolder.listFiles();
+        }
+        assert listOfFiles != null;
+        return listOfFiles;
     }
 }
