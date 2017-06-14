@@ -323,6 +323,11 @@ public class JNode {
         parent.loop();
     }
 
+    //faster version of remove()
+    public static void ripOff(Displayable displayable) {
+        displayables.remove(displayable);
+    }
+
     public static ArrayList<? extends Displayable> get(String id) {
         ArrayList<Displayable> selected = new ArrayList<>();
         for (Displayable displayable : displayables)
@@ -374,7 +379,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mousePressed();
-            if (i>=displayables.size()) break;
+            if (i >= displayables.size()) break;
         }
     }
 
@@ -384,7 +389,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mouseReleased();
-            if (i>=displayables.size()) break; //fixed!!! June 9th, breakthrough!
+            if (i >= displayables.size()) break; //fixed!!! June 9th, breakthrough!
         }
     }
 
@@ -394,7 +399,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mouseDragged();
-            if (i>=displayables.size()) break;
+            if (i >= displayables.size()) break;
         }
     }
 
@@ -404,7 +409,7 @@ public class JNode {
             if (!(displayable instanceof MenuDropdown))
                 if (!displayable.isVisible()) continue;
             displayable.mouseHeld();
-            if (i>=displayables.size()) break;
+            if (i >= displayables.size()) break;
         }
     }
 
@@ -425,7 +430,7 @@ public class JNode {
                 if (displayable instanceof KeyControl) {
                     KeyControl c = (KeyControl) displayable;
                     c.keyPressed();
-                    if (i>=displayables.size()) break;
+                    if (i >= displayables.size()) break;
                 }
             }
         }
@@ -440,7 +445,7 @@ public class JNode {
                 if (displayable instanceof KeyControl) {
                     KeyControl c = (KeyControl) displayable;
                     c.keyReleased();
-                    if (i>=displayables.size()) break;
+                    if (i >= displayables.size()) break;
                 }
             }
         }
@@ -598,5 +603,21 @@ public class JNode {
 
     public static void setAutomaticEventTransferring(boolean temp) {
         JNode.automaticEventTransferring = temp;
+    }
+
+    /**
+     * calculates the difference between 2 colors according to human perception.
+     * #reference: https://stackoverflow.com/questions/2103368/color-logic-algorithm
+     *
+     * @param color1 the first color
+     * @param color2 the second color
+     * @return the difference between two colors
+     */
+    public static float colorDistance(float color1, float color2) {
+        int redMean = (int) ((getParent().red((int) color1) + getParent().red((int) color2)) / 2);
+        int r = (int) (getParent().red((int) color1) - getParent().red((int) color2));
+        int g = (int) (getParent().green((int) color1) - getParent().green((int) color2));
+        int b = (int) (getParent().blue((int) color1) - getParent().blue((int) color2));
+        return PApplet.sqrt((((512 + redMean) * r * r) >> 8) + 4 * g * g + (((767 - redMean) * b * b) >> 8));
     }
 }

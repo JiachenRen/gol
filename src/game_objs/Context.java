@@ -1,9 +1,7 @@
 package game_objs;
 
-import jui_lib.Displayable;
-import jui_lib.Event;
-import jui_lib.EventListener;
-import jui_lib.JNode;
+import com.sun.istack.internal.Nullable;
+import jui_lib.*;
 import processing.core.PApplet;
 import processing.core.PConstants;
 
@@ -20,7 +18,7 @@ import java.util.ArrayList;
  * (designed by Jiachen) to manage its relative position on screen so that it works well
  * when integrated with JUI.
  */
-public class Context extends Displayable {
+public class Context extends Displayable implements KeyControl {
     private Cell[][] cellMatrix;
     private int rows;
     private int columns;
@@ -31,6 +29,17 @@ public class Context extends Displayable {
     private boolean cellGridVisible;
     private ArrayList<Cell> activeCells;
     private static boolean runningAsApplication;
+    private boolean insertingConfig;
+    private Config currentConfig;
+    Displayable dummyCell;
+    int[] startingPos;
+    int[] endingPos;
+    boolean selecting;
+    ArrayList<Cell> selected;
+
+    {
+        Cell.context = this;
+    }
 
     /**
      * constructs a dimensionless Context obj that hosts the Game of Life.
@@ -47,10 +56,21 @@ public class Context extends Displayable {
         cellGridVisible = true;
         setBackgroundVisible(false);
         setContourThickness(0.2f);
-        //setContourVisible(true);
         initializeCellMatrix();
         initEventListeners();
+        initDummyCell();
+        selected = new ArrayList<>();
     }
+
+    private void initDummyCell() {
+        dummyCell = new Displayable()
+                .setBackgroundColor(255, 0, 0, 100)
+                .setContourThickness(2)
+                .setContourVisible(true)
+                .setContourColor(255, 0, 0)
+                .setVisible(true);
+    }
+
 
     /**
      * initializes the iteration event listener. The event listener is invoked
@@ -75,8 +95,7 @@ public class Context extends Displayable {
         activeCells = new ArrayList<>();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
-                cellMatrix[r][c] = new Cell(this, false, r, c);
-                cellMatrix[r][c].setId("#" + this.id + " " + r + " " + c);
+                cellMatrix[r][c] = new Cell(false, r, c);
                 cellMatrix[r][c].setRelative(false);
                 JNode.add(cellMatrix[r][c]);
             }
@@ -100,7 +119,7 @@ public class Context extends Displayable {
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
                 //JNode.remove("#" + this.id + " " + r + " " + c);
-                JNode.remove(cellMatrix[r][c]);
+                JNode.ripOff(cellMatrix[r][c]);
             }
         }
         getParent().loop();
@@ -156,6 +175,33 @@ public class Context extends Displayable {
         }
     }
 
+    void highlight(int[] beginPos, int[] endPos) {
+        getParent().pushStyle();
+        Cell begin = this.getCell(beginPos[0], beginPos[1]);
+        Cell end = this.getCell(endPos[0], endPos[1]);
+
+        getParent().stroke(255, 0, 0);
+        getParent().fill(JNode.MOUSE_OVER_BACKGROUND_COLOR, 100);
+        getParent().rectMode(PConstants.CORNER);
+        float tx = begin.x < end.x ? begin.x : end.x;
+        float ty = begin.y < end.y ? begin.y : end.y;
+        float tw = Math.abs(begin.x - end.x) + begin.w;
+        float th = Math.abs(begin.y - end.y) + begin.w;
+        getParent().rect(tx, ty, tw, th);
+        getParent().popStyle();
+        for (Cell cell : activeCells)
+            if (cell.isAlive() && cell.x >= tx && cell.y >= ty)
+                if (cell.x + cell.w <= tx + tw && cell.y + cell.w <= ty + th)
+                    cell.highlight();
+    }
+
+    void select(int[] beginPos, int[] endPos) {
+        for (Cell cell : activeCells)
+            if (cell.isAlive() && cell.row >= beginPos[0] && cell.row <= endPos[0])
+                if (cell.col >= beginPos[1] && cell.col <= endPos[1])
+                    selected.add(cell);
+    }
+
     @Override
     public void relocate(float x, float y) {
         super.relocate(x, y);
@@ -207,6 +253,7 @@ public class Context extends Displayable {
      */
     @Override
     public void display() {
+        selected.forEach(Cell::highlight);
         if (cellGridVisible)
             drawMatrixGrid();
     }
@@ -221,10 +268,10 @@ public class Context extends Displayable {
      * @return cell at the designated position
      */
     private Cell getCell(int row, int col) {
-        row = row == this.rows ? 0 : row;
-        row = row == -1 ? this.rows - 1 : row;
-        col = col == this.columns ? 0 : col;
-        col = col == -1 ? this.columns - 1 : col;
+        row = row >= this.rows ? row - rows : row;
+        row = row <= -1 ? this.rows + row : row;
+        col = col >= this.columns ? col - columns : col;
+        col = col <= -1 ? this.columns + col : col;
         return cellMatrix[row][col];
     }
 
@@ -257,35 +304,38 @@ public class Context extends Displayable {
         boolean[][] result = new boolean[rows][columns];
 
         //generate the result of this iteration
-        for (Cell cell : activeCells) {
-            int numAlive = numCellsAlive(cell.row, cell.col);
-            if (cell.isAlive())
-                result[cell.row][cell.col] = numAlive > 1 && numAlive < 4;
-            else result[cell.row][cell.col] = numAlive == 3;
-        }
+        this.applyRuleDefault(result);
+        //this.applyRule30(result);
         //System.out.println(activeCells.size());
 
-
-
-        /*
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < columns; c++) {
-                int numAlive = numCellsAlive(r, c);
-                if (cellMatrix[r][c].isAlive())
-                    result[r][c] = numAlive > 1 && numAlive < 4;
-                else result[r][c] = numAlive == 3;
-            }
-        }
-        */
 
         activeCells = new ArrayList<>();
         //updates the cells according to the result obtained
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < columns; c++) {
                 cellMatrix[r][c].setAlive(result[r][c]);
-                if (result[r][c]) setActive(r, c);
             }
     }
+
+    private void applyRuleDefault(boolean[][] input) {
+        for (Cell cell : activeCells) {
+            int numAlive = numCellsAlive(cell.row, cell.col);
+            if (cell.isAlive())
+                input[cell.row][cell.col] = numAlive > 1 && numAlive < 4;
+            else input[cell.row][cell.col] = numAlive == 3;
+        }
+    }
+
+    /*
+    private void applyRule30(boolean[][] input) {
+        for (Cell cell : activeCells) {
+            boolean pos00 = getCell(cell.row - 1, cell.col - 1).isAlive();
+            boolean pos01 = getCell(cell.row - 1, cell.col).isAlive();
+            boolean pos02 = getCell(cell.row - 1, cell.col + 1).isAlive();
+            input[cell.row][cell.col] = !(pos00 && pos01 && pos02) && !(pos00 && pos01) && (pos00 && pos02 || pos00 || pos01 && pos02 || pos01 || pos02);
+        }
+    }
+    */
 
     void setActive(int row, int col) {
         for (int i = -1; i <= 1; i++) {
@@ -311,15 +361,48 @@ public class Context extends Displayable {
      *
      * @param rows number of rows
      * @param cols number of columns
+     * @since June 13th: acceleration
      */
     public void setDimension(int rows, int cols) {
-        //System.out.println("disposing");
-        this.dispose(); //TODO: too slow!
-        //System.out.println("disposed");
+        if (rows == this.rows && cols == this.columns)
+            return;
+        if (rows >= this.rows && cols >= this.columns) {
+            Cell[][] updatedMatrix = new Cell[rows][cols];
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
+                    if (r < this.rows && c < this.columns)
+                        updatedMatrix[r][c] = cellMatrix[r][c].setAlive(false);
+                    else {
+                        updatedMatrix[r][c] = new Cell(false, r, c);
+                        updatedMatrix[r][c].setRelative(false);
+                        JNode.add(updatedMatrix[r][c]);
+                    }
+                }
+            }
+            cellMatrix = updatedMatrix;
+        } else if (rows <= this.rows && cols <= this.columns) {
+            for (int r = 0; r < this.rows; r++) {
+                for (int c = 0; c < this.columns; c++) {
+                    if (r >= rows || c >= cols)
+                        JNode.ripOff(cellMatrix[r][c]);
+                }
+            }
+            activeCells = new ArrayList<>();
+        } else {
+            this.dispose();//resource expensive
+            this.rows = rows;
+            this.columns = cols;
+            initializeCellMatrix();
+        }
         this.rows = rows;
         this.columns = cols;
-        initializeCellMatrix();
-        requestUpdate();
+        this.requestUpdate();
+    }
+
+    public void clear() {
+        for (Cell[] cells : cellMatrix)
+            for (Cell cell : cells)
+                cell.setAlive(false);
     }
 
     /**
@@ -351,48 +434,198 @@ public class Context extends Displayable {
     }
 
     /**
-     * TODO: implement, java doc
+     * loads a file that contains a saved game to the current game object.
      *
-     * @param file the file (configuration or saved game) to be loaded
+     * @param file the saved game file to be loaded
      */
     public void load(File file) {
         String lines[] = PApplet.loadStrings(file);
-        if (lines[0].equals("#saved")) {
-            System.out.println("loaded saved game:" + file.getName());
+        if (!lines[0].equals("#saved")) return;
+        String dim[] = lines[1].substring(lines[1].indexOf(":") + 1).split(",");
+        this.setDimension(Integer.valueOf(dim[0]), Integer.valueOf(dim[1]));
+        this.clear();
+        String[] activeCellCoordinates = lines[2].substring(lines[2].indexOf(":") + 1).split(";");
+        for (String coordinate : activeCellCoordinates) {
+            String[] pos = coordinate.split(",");
+            if (pos[0].equals("") || pos[1].equals("")) break;
+            cellMatrix[Integer.valueOf(pos[0])][Integer.valueOf(pos[1])].setAlive(true);
+        }
+        System.out.println("loaded saved game:" + file.getName());
+    }
+
+    public static void importConfig(File file) {
+        String lines[] = PApplet.loadStrings(file);
+        if (lines[0].equals("#configs")) {
             String dim[] = lines[1].substring(lines[1].indexOf(":") + 1).split(",");
-            this.setDimension(Integer.valueOf(dim[0]), Integer.valueOf(dim[1]));
+            Config config = new Config(file.getName(), parseInt(dim[0]), parseInt(dim[1]));
             String[] activeCellCoordinates = lines[2].substring(lines[2].indexOf(":") + 1).split(";");
             for (String coordinate : activeCellCoordinates) {
                 String[] pos = coordinate.split(",");
                 if (pos[0].equals("") || pos[1].equals("")) break;
-                cellMatrix[Integer.valueOf(pos[0])][Integer.valueOf(pos[1])].setAlive(true);
+                config.add(parseInt(pos[0]), parseInt(pos[1]));
             }
+            Config.register(config);
+        } else if (lines[0].equals("#configs-p") && lines.length > 1) {
+            int cols = lines[1].length(), rows = lines.length - 1;
+            Config config = new Config(file.getName(), rows, cols);
+            for (int i = 1; i < lines.length; i++) {
+                for (int q = 0; q < lines[i].length(); q++) {
+                    if (lines[i].charAt(q) == '*') {
+                        config.add(i - 1, q);
+                    }
+                }
+            }
+            Config.register(config);
+        } else if (lines[0].equals("#configs-lif")) {
+            int anchorRow = 0, anchorCol = 0, staringIndex = 0;
+            ArrayList<int[]> coordinates = new ArrayList<>();
+            for (int i = 1; i < lines.length; i++) {
+                String line = lines[i];
+                if (line.startsWith("#P ")) {
+                    String temp[] = line.substring(3).split(" ");
+                    anchorRow = parseInt(temp[0]);
+                    anchorCol = parseInt(temp[1]);
+                    staringIndex = i;
+                } else for (int q = 0; q < line.length(); q++) {
+                    if (line.charAt(q) == '*') {
+                        coordinates.add(new int[]{anchorRow + i - staringIndex - 1, anchorCol + q});
+                    }
+                }
+            }
+            int minRow = Integer.MAX_VALUE, minCol = Integer.MAX_VALUE;
+            for (int[] pos : coordinates) {
+                minRow = pos[0] < minRow ? pos[0] : minRow;
+                minCol = pos[1] < minCol ? pos[1] : minCol;
+            }
+            int maxRow = Integer.MIN_VALUE, maxCol = Integer.MIN_VALUE;
+            for (int i = 0; i < coordinates.size(); i++) {
+                int[] pos = coordinates.get(i);
+                int[] updated = new int[]{pos[0] - minRow, pos[1] - minCol};
+                maxRow = pos[0] > maxRow ? pos[0] : maxRow;
+                maxCol = pos[1] > maxCol ? pos[1] : maxCol;
+                coordinates.set(i, updated);
+            }
+            Config config = new Config(file.getName(), maxRow, maxCol);
+            System.out.println(coordinates.size());
+            coordinates.forEach(coordinate -> config.add(coordinate[0], coordinate[1]));
+            Config.register(config);
         }
+        System.out.println("loaded config: " + file.getName());
+
     }
 
-    public void save(String fileName) {
-        System.out.println("saved: " + fileName);
+    /**
+     * use "saved" for saved games, use "configs" for saving permanent configurations.
+     * if it is saved as a configuration, then it would be available for manipulation.
+     *
+     * @param fileName the name of the file to be saved
+     * @param type     saved as a configuration or a plain "saved game"
+     */
+    @SuppressWarnings("ConstantConditions")
+    public void save(String fileName, String type) {
         try {
-            String path = runningAsApplication ? getAlternativePath("saved") : getFilesPath("saved");
+            String path = runningAsApplication ? getAlternativePath(type) : getFilesPath(type);
             PrintWriter writer = new PrintWriter(path + "/" + fileName, "UTF-8");
-            writer.println("#saved");
-            writer.println("~ dim:" + rows + "," + columns);
-            writer.print("~ pos:");
-            for (int r = 0; r < rows; r++) {
-                for (int c = 0; c < columns; c++) {
-                    if (cellMatrix[r][c].isAlive())
-                        writer.print(r + "," + c + ";");
+            writer.println("#" + type);
+            if (type.equals("saved")) {
+                writer.println("~ dim:" + rows + "," + columns);
+                writer.print("~ pos:");
+                for (int r = 0; r < rows; r++) {
+                    for (int c = 0; c < columns; c++) {
+                        if (cellMatrix[r][c].isAlive())
+                            writer.print(r + "," + c + ";");
+                    }
                 }
+            } else {
+                int lowestCol = this.columns, lowestRow = this.rows;
+                int largestCol = 0, largestRow = 0;
+                ArrayList<Cell> aliveCells = new ArrayList<>();
+                for (int r = 0; r < rows; r++) {
+                    for (int c = 0; c < columns; c++) {
+                        Cell cell = cellMatrix[r][c];
+                        if (!cell.isAlive()) continue;
+                        lowestCol = c < lowestCol ? c : lowestCol;
+                        lowestRow = r < lowestRow ? r : lowestRow;
+                        largestCol = c > largestCol ? c : largestCol;
+                        largestRow = r > largestRow ? r : largestRow;
+                        aliveCells.add(cell);
+                    }
+                }
+                writer.println("~ dim:" + (largestRow - lowestRow) + "," + (largestCol - lowestCol));
+                writer.print("~ pos:");
+                final int finalLowestCol = lowestCol;
+                final int finalLowestRow = lowestRow;
+                aliveCells.forEach(cell -> writer.print((cell.row - finalLowestRow) + "," + (cell.col - finalLowestCol) + ";"));
             }
             writer.close();
         } catch (IOException e) {
-            // do something
+            e.printStackTrace();
         }
+        System.out.println("saved: " + fileName);
+    }
 
+
+    /**
+     * TODO: improve
+     */
+    public void keyPressed() {
+        if (currentConfig != null && isInsertingConfig()) {
+            switch (getParent().keyCode) {
+                case PApplet.UP:
+                    currentConfig.flip(Config.Dir.VERTICAL);
+                    break;
+                case PApplet.DOWN:
+                    currentConfig.flip(Config.Dir.HORIZONTAL);
+                case PApplet.RIGHT:
+                    currentConfig.flip(Config.Dir.ROTATE);
+            }
+        } else if (selecting || selected.size() > 0) {
+            switch (getParent().keyCode) {
+                case 8:
+                    delete();
+                    break;
+            }
+            switch (getParent().key) {
+                case 'C':
+                    paste();
+                    break;
+                case 'X':
+                    paste();
+                    delete();
+                    break;
+            }
+            selecting = false;
+            selected = new ArrayList<>();
+        }
+    }
+
+    private void delete() {
+        selected.forEach(cell -> cell.setAlive(false));
+    }
+
+    private void paste() {
+        int rows = Math.abs(startingPos[0] - endingPos[0]);
+        int cols = Math.abs(startingPos[1] - endingPos[1]);
+        int sx = startingPos[0] < endingPos[0] ? startingPos[0] : endingPos[0];
+        int sy = startingPos[1] < endingPos[1] ? startingPos[1] : endingPos[1];
+        Config temp = new Config("temp", rows, cols);
+        selected.forEach(cell -> temp.add(cell.row - sx, cell.col - sy));
+        this.currentConfig = temp;
+        ((Switch) JNode.get("@INSERT").get(0)).setState(true).activate();
+    }
+
+
+    public void keyReleased() {
+        //if (getParent().keyCode == PApplet.SHIFT)
+        //   this.selecting = false;
     }
 
     private static String getFilesPath(String fileName) {
         return JNode.getParent().sketchPath() + "/src/game_objs/" + fileName;
+    }
+
+    private static int parseInt(String s) {
+        return PApplet.parseInt(s);
     }
 
     private static String getAlternativePath(String fileName) {
@@ -407,14 +640,151 @@ public class Context extends Displayable {
         }
     }
 
-    public static File[] listOfFiles() {
-        File folder = new File(Context.getFilesPath("saved"));
+    public static File[] listOfFiles(String dir) {
+        File folder = new File(Context.getFilesPath(dir));
         File[] listOfFiles = folder.listFiles();
         if (listOfFiles == null) {
-            @SuppressWarnings("ConstantConditions") File alternateFolder = new File(Context.getAlternativePath("saved"));
+            @SuppressWarnings("ConstantConditions") File alternateFolder = new File(Context.getAlternativePath(dir));
             listOfFiles = alternateFolder.listFiles();
         }
         assert listOfFiles != null;
         return listOfFiles;
+    }
+
+    public void setCurrentConfig(String configName) {
+        currentConfig = Config.extract(configName);
+        System.out.println("current config: " + configName);
+    }
+
+    public void setInsertingConfig(boolean temp) {
+        this.insertingConfig = temp;
+    }
+
+    boolean isInsertingConfig() {
+        return insertingConfig;
+    }
+
+    public Config getCurrentConfig() {
+        return currentConfig;
+    }
+
+    void displayConfig(int row, int col) {
+        ArrayList<int[]> cellCoordinates = currentConfig.translatedCoordinate(row, col);
+        dummyCell.resize(cellMatrix[0][0].w, cellMatrix[0][0].h);
+        for (int[] pos : cellCoordinates) {
+            Cell cell = this.getCell(pos[0], pos[1]);
+            dummyCell.relocate(cell.x, cell.y);
+            dummyCell.display();
+        }
+    }
+
+    void insertConfig(int row, int col) {
+        ArrayList<int[]> cellCoordinates = currentConfig.translatedCoordinate(row, col);
+        for (int[] pos : cellCoordinates) {
+            Cell cell = getCell(pos[0], pos[1]);
+            cell.setAlive(!cell.isAlive());
+        }
+    }
+
+
+    private static class Config {
+        private static ArrayList<Config> configs;
+        private ArrayList<int[]> coordinates;
+        private String name;
+        private int rows;
+        private int cols;
+
+        private enum Dir {
+            HORIZONTAL,
+            VERTICAL,
+            ROTATE,
+        }
+
+        static {
+            configs = new ArrayList<>();
+        }
+
+        {
+            coordinates = new ArrayList<>();
+        }
+
+        private Config(String name, int rows, int cols) {
+            this.rows = rows;
+            this.cols = cols;
+            this.name = name;
+        }
+
+        private void add(int row, int col) {
+            coordinates.add(new int[]{row, col});
+        }
+
+        private static void register(Config config) {
+            configs.add(config);
+        }
+
+
+        /**
+         * inserts this configuration of cells into the designated context at a specific location.
+         * <p>
+         * //@param context the context in which the configuration is going to be inserted.
+         *
+         * @param row starting row
+         * @param col starting column
+         */
+        private ArrayList<int[]> translatedCoordinate(int row, int col) {
+            ArrayList<int[]> translated = new ArrayList<>();
+            for (int[] coordinate : coordinates)
+                translated.add(new int[]{row + coordinate[0], col + coordinate[1]});
+            return translated;
+        }
+
+        @Nullable
+        private static Config extract(String name) {
+            for (Config config : configs)
+                if (config.name.equals(name))
+                    return config;
+            return null;
+        }
+
+        private void flip(Dir dir) {
+            System.out.println(rows + " " + cols);
+            if (dir == Dir.HORIZONTAL) {
+                for (int i = 0; i < coordinates.size(); i++) {
+                    int[] coordinate = coordinates.get(i);
+                    coordinates.set(i, new int[]{cols - coordinate[1], coordinate[0]});
+                }
+                revertDimension();
+            } else if (dir == Dir.VERTICAL) {
+                for (int i = 0; i < coordinates.size(); i++) {
+                    int[] coordinate = coordinates.get(i);
+                    coordinates.set(i, new int[]{rows - coordinate[0], coordinate[1]});
+                }
+            } else if (dir == Dir.ROTATE) {
+                for (int i = 0; i < coordinates.size(); i++) {
+                    int[] coordinate = coordinates.get(i);
+                    coordinates.set(i, new int[]{coordinate[1], coordinate[0]});
+                }
+                revertDimension();
+            }
+        }
+
+        private void revertDimension() {
+            int temp = rows;
+            rows = cols;
+            cols = temp;
+        }
+    }
+
+    /**
+     * spawn random cells in the cell matrix
+     *
+     * @param chance a number between 0 and 1 that indicates whether or
+     *               not the cell would be alive.
+     */
+    public void spawnRandom(float chance) {
+        for (Cell[] cells : cellMatrix)
+            for (Cell cell : cells)
+                if (Math.random() < chance)
+                    cell.setAlive(!cell.isAlive());
     }
 }

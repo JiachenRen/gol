@@ -159,7 +159,7 @@ public class MenuItem extends Label implements MouseControl {
 
     @Override
     public MenuItem setBackgroundColor(int c) {
-        backgroundColor = c;
+        super.setBackgroundColor(c);
         if (menu != null) menu.setBackgroundColor(backgroundColor);
         return this;
     }

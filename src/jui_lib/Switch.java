@@ -8,6 +8,8 @@ public class Switch extends Button {
     private int textColorOff;
     private boolean pressedOnTarget;
     private String contentOn;
+    private Condition metWhenOn;
+    private Condition metWhenOff;
 
     public Switch(float x, float y, float w, float h) {
         super(x, y, w, h);
@@ -21,6 +23,10 @@ public class Switch extends Button {
         super();
     }
 
+    public interface Condition {
+        boolean satisfied();
+    }
+
     @Override
     public void init() {
         super.init();
@@ -29,7 +35,7 @@ public class Switch extends Button {
         textColorOff = getTextColor();
         this.addEventListener("@RESERVED", Event.MOUSE_PRESSED, () -> pressedOnTarget = true);
         this.addEventListener("@RESERVED", Event.MOUSE_LEFT, () -> pressedOnTarget = false);
-        this.addEventListener("@RESERVED", Event.MOUSE_RELEASED, () -> {
+        this.addEventListener("@RESERVED_FLIP", Event.MOUSE_RELEASED, () -> {
             if (pressedOnTarget) setState(!isOn);
             pressedOnTarget = false;
         });
@@ -70,6 +76,10 @@ public class Switch extends Button {
     }
 
     public Switch setState(boolean isOn) {
+        if (isOn && metWhenOn != null && !metWhenOn.satisfied())
+            return this;
+        else if (!isOn && metWhenOff != null && !metWhenOff.satisfied())
+            return this;
         this.isOn = isOn;
         updateState();
         return this;
@@ -99,4 +109,20 @@ public class Switch extends Button {
         return this;
     }
 
+    public Switch setConditionOn(Condition conditionOn) {
+        this.metWhenOn = conditionOn;
+        return this;
+    }
+
+    public Switch setConditionOff(Condition conditionOff) {
+        this.metWhenOn = conditionOff;
+        return this;
+    }
+
+    public Switch manualSwitch() {
+        pressedOnTarget = true;
+        this.getEventListener("@RESERVED_FLIP").invoke();
+        pressedOnTarget = false;
+        return this;
+    }
 }

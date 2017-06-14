@@ -12,8 +12,8 @@ contour_thickness: 1
 rounding: 3
 
 background_color: 20,20,20,20
-mouse_pressed_background_color: 30,135,180,200
-mouse_over_background_color: 90,140,210,120
+mouse_pressed_background_color: 180,0,0,200
+mouse_over_background_color: 210,0,0,120
 
 contour_color: 0,0,0,255
 mouse_pressed_contour_color: 0,0,0,255

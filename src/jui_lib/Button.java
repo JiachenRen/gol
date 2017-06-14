@@ -143,4 +143,9 @@ public class Button extends Contextual implements MouseControl {
         super.setId(id);
         return this;
     }
+
+    public Button activate() {
+        onClickMethod.run();
+        return this;
+    }
 }

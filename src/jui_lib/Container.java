@@ -236,6 +236,7 @@ public abstract class Container extends Displayable {
         if (displayables == null) return this; /*this is here to prevent null pointer exception thrown by Table.*/
         for (int i = displayables.size() - 1; i >= 0; i--) {
             Displayable displayable = displayables.get(i);
+            if (displayable.ignoreWhenInvisible()) continue;
             if (displayable instanceof Container) {
                 Container c = (Container) displayable;
                 c.setVisible(temp);

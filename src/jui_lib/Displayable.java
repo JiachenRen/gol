@@ -54,6 +54,7 @@ public class Displayable implements MouseControl, Serializable {
     private ArrayList<EventListener> eventListeners;
 
     private boolean mouseIsInScope;
+    private boolean ignoreWhenInvisible;
 
     {
         eventListeners = new ArrayList<>();
@@ -614,6 +615,19 @@ public class Displayable implements MouseControl, Serializable {
 
     public Displayable requestUpdate() {
         updateRequested = true;
+        return this;
+    }
+
+    /**
+     * TODO: java doc
+     * @returnt
+     */
+    public boolean ignoreWhenInvisible(){
+        return ignoreWhenInvisible;
+    }
+
+    public Displayable setIgnoreWhenInvisible(boolean temp){
+        this.ignoreWhenInvisible = temp;
         return this;
     }
 
