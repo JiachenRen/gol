@@ -248,9 +248,11 @@ public abstract class Container extends Displayable {
     }
 
     public static void refresh() {
-        for (Container container : JNode.getContainers()) {
-            container.syncSize();
-            container.arrange();
+        for (Displayable displayable : JNode.getDisplayables()) {
+            if (displayable instanceof Container) {
+                ((Container) displayable).syncSize();
+                ((Container) displayable).arrange();
+            }
         }
     }
 

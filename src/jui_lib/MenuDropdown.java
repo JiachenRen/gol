@@ -116,7 +116,7 @@ public class MenuDropdown extends Contextual implements MouseControl {
         if (mouseTriggering && triggeringMouseButton == getParent().mouseButton) {
             //System.out.println("MouseReleased: "+getParent().mouseButton+" Current: "+triggeringMouseButton);
             this.setVisible(!this.isVisible());
-            if (isVisible()&&triggeringEvent!=null)
+            if (isVisible() && triggeringEvent != null)
                 triggeringEvent.run();
 
         }
@@ -146,8 +146,8 @@ public class MenuDropdown extends Contextual implements MouseControl {
 
     //this needs to be re-written later.
     public boolean isFrontMost() {
-        for (TextInput textInput : JNode.getTextInputs())
-            if (textInput.isFocusedOn()) return false;
+        for (Displayable displayable : JNode.getDisplayables())
+            if (displayable instanceof Container && ((TextInput) displayable).isFocusedOn()) return false;
         return true;
     }
 
@@ -157,7 +157,7 @@ public class MenuDropdown extends Contextual implements MouseControl {
                 downKeyCodes.add(getParent().keyCode);
             if (containsAll(downKeyCodes, triggeringKeys)) {
                 this.setVisible(!this.isVisible());
-                if (isVisible()&&triggeringEvent!=null)
+                if (isVisible() && triggeringEvent != null)
                     triggeringEvent.run();
             }
         }
@@ -212,8 +212,8 @@ public class MenuDropdown extends Contextual implements MouseControl {
     }
 
     private void arrange() {
-        Container.applyOutlookToNodes(this,menuItems,false);
-        itemHeight =getTextHeight();
+        Container.applyOutlookToNodes(this, menuItems, false);
+        itemHeight = getTextHeight();
         float itemWidth = 0;
         for (MenuItem menuItem : menuItems) {
             if (getTextWidth(menuItem.getContent()) > itemWidth)
@@ -244,7 +244,7 @@ public class MenuDropdown extends Contextual implements MouseControl {
 
     @Override
     public void relocate(float x, float y) {
-        super.relocate(x,y);
+        super.relocate(x, y);
         arrange();
     }
 
