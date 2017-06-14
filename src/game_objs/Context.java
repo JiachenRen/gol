@@ -506,7 +506,6 @@ public class Context extends Displayable implements KeyControl {
                 coordinates.set(i, updated);
             }
             Config config = new Config(file.getName(), maxRow, maxCol);
-            System.out.println(coordinates.size());
             coordinates.forEach(coordinate -> config.add(coordinate[0], coordinate[1]));
             Config.register(config);
         }
