@@ -32,6 +32,7 @@ public class Context extends Displayable implements KeyControl {
     private boolean insertingConfig;
     private Config currentConfig;
     Displayable dummyCell;
+    private int[][] neighborCellsCount;
     int[] startingPos;
     int[] endingPos;
     boolean selecting;
@@ -92,6 +93,7 @@ public class Context extends Displayable implements KeyControl {
      */
     private void initializeCellMatrix() {
         cellMatrix = new Cell[rows][columns];
+        neighborCellsCount = new int[rows][columns];
         activeCells = new ArrayList<>();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
@@ -118,7 +120,6 @@ public class Context extends Displayable implements KeyControl {
         getParent().noLoop();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
-                //JNode.remove("#" + this.id + " " + r + " " + c);
                 JNode.ripOff(cellMatrix[r][c]);
             }
         }
@@ -268,11 +269,26 @@ public class Context extends Displayable implements KeyControl {
      * @return cell at the designated position
      */
     private Cell getCell(int row, int col) {
+        int pos[] = getCorrectedPos(row, col);
+        return cellMatrix[pos[0]][pos[1]];
+    }
+
+    private int[] getCorrectedPos(int row, int col) {
         row = row >= this.rows ? row - rows : row;
         row = row <= -1 ? this.rows + row : row;
         col = col >= this.columns ? col - columns : col;
         col = col <= -1 ? this.columns + col : col;
-        return cellMatrix[row][col];
+        return new int[]{row, col};
+    }
+
+    void registerChange(boolean state, int row, int col) {
+        for (int i = -1; i <= 1; i++) {
+            for (int q = -1; q <= 1; q++) {
+                if (i == 0 && q == 0) continue;
+                int[] pos = getCorrectedPos(row + i, col + q);
+                neighborCellsCount[pos[0]][pos[1]] += state ? 1 : -1;
+            }
+        }
     }
 
     /**
@@ -281,15 +297,7 @@ public class Context extends Displayable implements KeyControl {
      * @return the number of living cells around the center cell
      */
     private int numCellsAlive(int row, int col) {
-        int count = 0;
-        for (int i = -1; i <= 1; i++) {
-            for (int q = -1; q <= 1; q++) {
-                if (i == 0 && q == 0) continue;
-                if (getCell(row + i, col + q).isAlive())
-                    count++;
-            }
-        }
-        return count;
+        return neighborCellsCount[row][col];
     }
 
     /**
@@ -366,6 +374,7 @@ public class Context extends Displayable implements KeyControl {
     public void setDimension(int rows, int cols) {
         if (rows == this.rows && cols == this.columns)
             return;
+        neighborCellsCount = new int[rows][cols];
         if (rows >= this.rows && cols >= this.columns) {
             Cell[][] updatedMatrix = new Cell[rows][cols];
             for (int r = 0; r < rows; r++) {
@@ -772,6 +781,7 @@ public class Context extends Displayable implements KeyControl {
             rows = cols;
             cols = temp;
         }
+
     }
 
     /**
