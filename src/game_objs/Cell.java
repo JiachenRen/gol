@@ -86,13 +86,10 @@ public class Cell extends Displayable {
             if (highlightingMotion)
                 setBackgroundColor(255, 0, 0);
             else setBackgroundColor(255, 0, 0, 200);
+            this.alive = alive;
         }
         if (alive) context.setActive(row, col);
-        if (this.alive != alive)
-            context.registerChange(alive, row, col);
-        this.alive = alive;
         setBackgroundVisible(highlightingMotion || alive);
-        //add covered?
         return this;
     }
 
