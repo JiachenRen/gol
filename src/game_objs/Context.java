@@ -31,7 +31,9 @@ public class Context extends Displayable implements KeyControl {
     private static boolean runningAsApplication;
     private boolean insertingConfig;
     private Config currentConfig;
+    private static int availableProcessors;
     Displayable dummyCell;
+    private boolean[][] resultMatrix;
     int[] startingPos;
     int[] endingPos;
     boolean selecting;
@@ -39,6 +41,7 @@ public class Context extends Displayable implements KeyControl {
 
     {
         Cell.context = this;
+        availableProcessors = Runtime.getRuntime().availableProcessors();
     }
 
     /**
@@ -65,8 +68,8 @@ public class Context extends Displayable implements KeyControl {
     private void initDummyCell() {
         dummyCell = new Displayable()
                 .setBackgroundColor(255, 0, 0, 100)
-                .setContourThickness(2)
-                .setContourVisible(true)
+                //.setContourThickness(2)
+                .setContourVisible(false)
                 .setContourColor(255, 0, 0)
                 .setVisible(true);
     }
@@ -118,7 +121,6 @@ public class Context extends Displayable implements KeyControl {
         getParent().noLoop();
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < columns; c++) {
-                //JNode.remove("#" + this.id + " " + r + " " + c);
                 JNode.ripOff(cellMatrix[r][c]);
             }
         }
@@ -268,11 +270,16 @@ public class Context extends Displayable implements KeyControl {
      * @return cell at the designated position
      */
     private Cell getCell(int row, int col) {
+        int pos[] = getCorrectedPos(row, col);
+        return cellMatrix[pos[0]][pos[1]];
+    }
+
+    private int[] getCorrectedPos(int row, int col) {
         row = row >= this.rows ? row - rows : row;
         row = row <= -1 ? this.rows + row : row;
         col = col >= this.columns ? col - columns : col;
         col = col <= -1 ? this.columns + col : col;
-        return cellMatrix[row][col];
+        return new int[]{row, col};
     }
 
     /**
@@ -285,7 +292,8 @@ public class Context extends Displayable implements KeyControl {
         for (int i = -1; i <= 1; i++) {
             for (int q = -1; q <= 1; q++) {
                 if (i == 0 && q == 0) continue;
-                if (getCell(row + i, col + q).isAlive())
+                int[] pos = getCorrectedPos(row + i, col + q);
+                if (getCell(pos[0], pos[1]).isAlive())
                     count++;
             }
         }
@@ -301,29 +309,39 @@ public class Context extends Displayable implements KeyControl {
      * 4. a dead cell with exactly three living neighbours comes alive.
      */
     public void iterate() {
-        boolean[][] result = new boolean[rows][columns];
+        resultMatrix = new boolean[rows][columns];
 
-        //generate the result of this iteration
-        this.applyRuleDefault(result);
-        //this.applyRule30(result);
-        //System.out.println(activeCells.size());
+        //generate the result of the iteration using multi-threading techniques.
+        ThreadGroup threadGroup = new ThreadGroup("computation");
+        ArrayList<Computation> computations = new ArrayList<>();
+        int indexSpan = activeCells.size() / availableProcessors + 1; //TODO: multi-threading actually made it slower!
+        //System.out.println(getParent().frameRate);
+        int i = 0;
+        while (true) {
+            if (i + indexSpan >= activeCells.size()) {
+                computations.add(new Computation("", threadGroup, i, activeCells.size() - 1));
+                break;
+            } else {
+                computations.add(new Computation("", threadGroup, i, i + indexSpan));
+                i += indexSpan + 1;
+            }
+        }
+        for (Computation computation : computations)
+            computation.start();
+
+        while (threadGroup.activeCount() > 0) {
+            //
+        }
 
 
         activeCells = new ArrayList<>();
+
         //updates the cells according to the result obtained
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < columns; c++) {
-                cellMatrix[r][c].setAlive(result[r][c]);
+                cellMatrix[r][c].setAlive(resultMatrix[r][c]);
             }
-    }
 
-    private void applyRuleDefault(boolean[][] input) {
-        for (Cell cell : activeCells) {
-            int numAlive = numCellsAlive(cell.row, cell.col);
-            if (cell.isAlive())
-                input[cell.row][cell.col] = numAlive > 1 && numAlive < 4;
-            else input[cell.row][cell.col] = numAlive == 3;
-        }
     }
 
     /*
@@ -400,9 +418,10 @@ public class Context extends Displayable implements KeyControl {
     }
 
     public void clear() {
-        for (Cell[] cells : cellMatrix)
-            for (Cell cell : cells)
-                cell.setAlive(false);
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < columns; c++)
+                cellMatrix[r][c].setAlive(false);
+        resultMatrix = new boolean[rows][columns];
     }
 
     /**
@@ -506,7 +525,6 @@ public class Context extends Displayable implements KeyControl {
                 coordinates.set(i, updated);
             }
             Config config = new Config(file.getName(), maxRow, maxCol);
-            System.out.println(coordinates.size());
             coordinates.forEach(coordinate -> config.add(coordinate[0], coordinate[1]));
             Config.register(config);
         }
@@ -773,6 +791,7 @@ public class Context extends Displayable implements KeyControl {
             rows = cols;
             cols = temp;
         }
+
     }
 
     /**
@@ -786,5 +805,30 @@ public class Context extends Displayable implements KeyControl {
             for (Cell cell : cells)
                 if (Math.random() < chance)
                     cell.setAlive(!cell.isAlive());
+    }
+
+    private class Computation extends Thread {
+        private int startIndex, endIndex;
+
+        private Computation(String name, ThreadGroup threadGroup, int startIndex, int endIndex) {
+            super(threadGroup, name);
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+        }
+
+        private void compute() {
+            for (int i = startIndex; i <= endIndex; i++) {
+                Cell cell = activeCells.get(i);
+                int numAlive = numCellsAlive(cell.row, cell.col);
+                if (cell.isAlive())
+                    resultMatrix[cell.row][cell.col] = numAlive > 1 && numAlive < 4;
+                else resultMatrix[cell.row][cell.col] = numAlive == 3;
+            }
+        }
+
+        @Override
+        public void run() {
+            this.compute();
+        }
     }
 }

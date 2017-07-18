@@ -299,7 +299,7 @@ public class Main extends PApplet {
                 .setTitlePercentage(0.3f)
                 .roundTo(-1)
                 .setTitle("fps")
-                .setRange(60, 300)
+                .setRange(60, 400)
                 .setValue(60);
         frameRate.link(() -> frameRate(frameRate.getIntValue())).getTitleLabel().inheritOutlook(modelLabel);
         uiPanel.add(frameRate);
