@@ -1,7 +1,7 @@
 package game_objs;
 
 import com.sun.istack.internal.Nullable;
-import jui_lib.*;
+import jui.*;
 import processing.core.PApplet;
 import processing.core.PConstants;
 
@@ -775,7 +775,7 @@ public class Context extends Displayable implements KeyControl {
             } else if (dir == Dir.VERTICAL) {
                 for (int i = 0; i < coordinates.size(); i++) {
                     int[] coordinate = coordinates.get(i);
-                    coordinates.set(i, new int[]{rows - coordinate[0], coordinate[1]});
+                    coordinates.set(i, new int[]{cols - coordinate[0], coordinate[1]});
                 }
             } else if (dir == Dir.ROTATE) {
                 for (int i = 0; i < coordinates.size(); i++) {

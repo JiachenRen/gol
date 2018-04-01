@@ -1,4 +1,4 @@
-import jui_lib.TextInput;
+import jui.TextInput;
 
 //import java.io.FileNotFoundException;
 //import java.io.PrintWriter;

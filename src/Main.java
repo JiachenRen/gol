@@ -1,9 +1,9 @@
 
 import game_objs.Cell;
 import game_objs.Context;
-import jui_lib.*;
-import jui_lib.bundles.AbstractValueSelector;
-import jui_lib.bundles.CompositeValueSelector;
+import jui.*;
+import jui.bundles.AbstractValueSelector;
+import jui.bundles.CompositeValueSelector;
 import processing.core.PApplet;
 
 import java.io.File;
@@ -41,7 +41,7 @@ public class Main extends PApplet {
     }
 
     public static void main(String[] args) {
-        sketchRenderer = args.length > 0 ? args[0] : "processing.awt.PGraphicsJava2D";
+        sketchRenderer = args.length > 0 ? args[0] : "processing.javafx.PGraphicsFX2D";
         smooth = args.length > 1 && args[1].equals("1");
         retina = args.length > 2 && args[2].equals("1");
         String sketch = Thread.currentThread().getStackTrace()[1].getClassName();
