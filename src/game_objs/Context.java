@@ -19,6 +19,13 @@ import java.util.ArrayList;
  * when integrated with JUI.
  */
 public class Context extends Displayable implements KeyControl {
+    private static boolean runningAsApplication;
+    private static int availableProcessors;
+    Displayable dummyCell;
+    int[] startingPos;
+    int[] endingPos;
+    boolean selecting;
+    ArrayList<Cell> selected;
     private Cell[][] cellMatrix;
     private int rows;
     private int columns;
@@ -28,16 +35,9 @@ public class Context extends Displayable implements KeyControl {
     private float gridRootY[];
     private boolean cellGridVisible;
     private ArrayList<Cell> activeCells;
-    private static boolean runningAsApplication;
     private boolean insertingConfig;
     private Config currentConfig;
-    private static int availableProcessors;
-    Displayable dummyCell;
     private boolean[][] resultMatrix;
-    int[] startingPos;
-    int[] endingPos;
-    boolean selecting;
-    ArrayList<Cell> selected;
 
     {
         Cell.context = this;
@@ -56,13 +56,112 @@ public class Context extends Displayable implements KeyControl {
         this.rows = rows;
         this.columns = columns;
         millisPerIteration = 10; //defaults to one iteration per 100 milliseconds.
-        cellGridVisible = true;
+        cellGridVisible = false;
         setBackgroundVisible(false);
         setContourThickness(0.2f);
         initializeCellMatrix();
         initEventListeners();
         initDummyCell();
         selected = new ArrayList<>();
+    }
+
+    public static void importConfig(File file) {
+        String lines[] = PApplet.loadStrings(file);
+        if (lines[0].equals("#configs")) {
+            String dim[] = lines[1].substring(lines[1].indexOf(":") + 1).split(",");
+            Config config = new Config(file.getName(), parseInt(dim[0]), parseInt(dim[1]));
+            String[] activeCellCoordinates = lines[2].substring(lines[2].indexOf(":") + 1).split(";");
+            for (String coordinate : activeCellCoordinates) {
+                String[] pos = coordinate.split(",");
+                if (pos[0].equals("") || pos[1].equals("")) break;
+                config.add(parseInt(pos[0]), parseInt(pos[1]));
+            }
+            Config.register(config);
+        } else if (lines[0].equals("#configs-p") && lines.length > 1) {
+            int cols = lines[1].length(), rows = lines.length - 1;
+            Config config = new Config(file.getName(), rows, cols);
+            for (int i = 1; i < lines.length; i++) {
+                for (int q = 0; q < lines[i].length(); q++) {
+                    if (lines[i].charAt(q) == '*') {
+                        config.add(i - 1, q);
+                    }
+                }
+            }
+            Config.register(config);
+        } else if (lines[0].equals("#configs-lif")) {
+            int anchorRow = 0, anchorCol = 0, staringIndex = 0;
+            ArrayList<int[]> coordinates = new ArrayList<>();
+            for (int i = 1; i < lines.length; i++) {
+                String line = lines[i];
+                if (line.startsWith("#P ")) {
+                    String temp[] = line.substring(3).split(" ");
+                    anchorRow = parseInt(temp[0]);
+                    anchorCol = parseInt(temp[1]);
+                    staringIndex = i;
+                } else for (int q = 0; q < line.length(); q++) {
+                    if (line.charAt(q) == '*') {
+                        coordinates.add(new int[]{anchorRow + i - staringIndex - 1, anchorCol + q});
+                    }
+                }
+            }
+            int minRow = Integer.MAX_VALUE, minCol = Integer.MAX_VALUE;
+            for (int[] pos : coordinates) {
+                minRow = pos[0] < minRow ? pos[0] : minRow;
+                minCol = pos[1] < minCol ? pos[1] : minCol;
+            }
+            int maxRow = Integer.MIN_VALUE, maxCol = Integer.MIN_VALUE;
+            for (int i = 0; i < coordinates.size(); i++) {
+                int[] pos = coordinates.get(i);
+                int[] updated = new int[]{pos[0] - minRow, pos[1] - minCol};
+                maxRow = pos[0] > maxRow ? pos[0] : maxRow;
+                maxCol = pos[1] > maxCol ? pos[1] : maxCol;
+                coordinates.set(i, updated);
+            }
+            Config config = new Config(file.getName(), maxRow, maxCol);
+            coordinates.forEach(coordinate -> config.add(coordinate[0], coordinate[1]));
+            Config.register(config);
+        }
+        System.out.println("loaded config: " + file.getName());
+
+    }
+
+    private static String getFilesPath(String fileName) {
+        return JNode.getParent().sketchPath() + "/src/game_objs/" + fileName;
+    }
+
+    private static int parseInt(String s) {
+        return PApplet.parseInt(s);
+    }
+
+    private static String getAlternativePath(String fileName) {
+        runningAsApplication = true;
+        try {
+            String pathToPApplet = PApplet.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+            int index = pathToPApplet.indexOf("Contents");
+            return pathToPApplet.substring(0, index + "Contents".length()) + "/saved_configs/" + fileName;
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static File[] listOfFiles(String dir) {
+        File folder = new File(Context.getFilesPath(dir));
+        File[] listOfFiles = folder.listFiles();
+        if (listOfFiles == null) {
+            @SuppressWarnings("ConstantConditions") File alternateFolder = new File(Context.getAlternativePath(dir));
+            listOfFiles = alternateFolder.listFiles();
+        }
+        assert listOfFiles != null;
+        return listOfFiles;
+    }
+
+    public boolean isCellGridVisible() {
+        return cellGridVisible;
+    }
+
+    public void setCellGridVisible(boolean cellGridVisible) {
+        this.cellGridVisible = cellGridVisible;
     }
 
     private void initDummyCell() {
@@ -73,7 +172,6 @@ public class Context extends Displayable implements KeyControl {
                 .setContourColor(255, 0, 0)
                 .setVisible(true);
     }
-
 
     /**
      * initializes the iteration event listener. The event listener is invoked
@@ -153,7 +251,6 @@ public class Context extends Displayable implements KeyControl {
     private float cellMatrixHeight() {
         return rows * cellWidth();
     }
-
 
     /**
      * @param w new width in pixels
@@ -250,6 +347,17 @@ public class Context extends Displayable implements KeyControl {
         return !(diffWidth > diffHeight) ? y + h / 2 - cellMatrixHeight() / 2 : y;
     }
 
+    /*
+    private void applyRule30(boolean[][] input) {
+        for (Cell cell : activeCells) {
+            boolean pos00 = getCell(cell.row - 1, cell.col - 1).isAlive();
+            boolean pos01 = getCell(cell.row - 1, cell.col).isAlive();
+            boolean pos02 = getCell(cell.row - 1, cell.col + 1).isAlive();
+            input[cell.row][cell.col] = !(pos00 && pos01 && pos02) && !(pos00 && pos01) && (pos00 && pos02 || pos00 || pos01 && pos02 || pos01 || pos02);
+        }
+    }
+    */
+
     /**
      * render the cells
      */
@@ -343,17 +451,6 @@ public class Context extends Displayable implements KeyControl {
             }
 
     }
-
-    /*
-    private void applyRule30(boolean[][] input) {
-        for (Cell cell : activeCells) {
-            boolean pos00 = getCell(cell.row - 1, cell.col - 1).isAlive();
-            boolean pos01 = getCell(cell.row - 1, cell.col).isAlive();
-            boolean pos02 = getCell(cell.row - 1, cell.col + 1).isAlive();
-            input[cell.row][cell.col] = !(pos00 && pos01 && pos02) && !(pos00 && pos01) && (pos00 && pos02 || pos00 || pos01 && pos02 || pos01 || pos02);
-        }
-    }
-    */
 
     void setActive(int row, int col) {
         for (int i = -1; i <= 1; i++) {
@@ -472,66 +569,6 @@ public class Context extends Displayable implements KeyControl {
         System.out.println("loaded saved game:" + file.getName());
     }
 
-    public static void importConfig(File file) {
-        String lines[] = PApplet.loadStrings(file);
-        if (lines[0].equals("#configs")) {
-            String dim[] = lines[1].substring(lines[1].indexOf(":") + 1).split(",");
-            Config config = new Config(file.getName(), parseInt(dim[0]), parseInt(dim[1]));
-            String[] activeCellCoordinates = lines[2].substring(lines[2].indexOf(":") + 1).split(";");
-            for (String coordinate : activeCellCoordinates) {
-                String[] pos = coordinate.split(",");
-                if (pos[0].equals("") || pos[1].equals("")) break;
-                config.add(parseInt(pos[0]), parseInt(pos[1]));
-            }
-            Config.register(config);
-        } else if (lines[0].equals("#configs-p") && lines.length > 1) {
-            int cols = lines[1].length(), rows = lines.length - 1;
-            Config config = new Config(file.getName(), rows, cols);
-            for (int i = 1; i < lines.length; i++) {
-                for (int q = 0; q < lines[i].length(); q++) {
-                    if (lines[i].charAt(q) == '*') {
-                        config.add(i - 1, q);
-                    }
-                }
-            }
-            Config.register(config);
-        } else if (lines[0].equals("#configs-lif")) {
-            int anchorRow = 0, anchorCol = 0, staringIndex = 0;
-            ArrayList<int[]> coordinates = new ArrayList<>();
-            for (int i = 1; i < lines.length; i++) {
-                String line = lines[i];
-                if (line.startsWith("#P ")) {
-                    String temp[] = line.substring(3).split(" ");
-                    anchorRow = parseInt(temp[0]);
-                    anchorCol = parseInt(temp[1]);
-                    staringIndex = i;
-                } else for (int q = 0; q < line.length(); q++) {
-                    if (line.charAt(q) == '*') {
-                        coordinates.add(new int[]{anchorRow + i - staringIndex - 1, anchorCol + q});
-                    }
-                }
-            }
-            int minRow = Integer.MAX_VALUE, minCol = Integer.MAX_VALUE;
-            for (int[] pos : coordinates) {
-                minRow = pos[0] < minRow ? pos[0] : minRow;
-                minCol = pos[1] < minCol ? pos[1] : minCol;
-            }
-            int maxRow = Integer.MIN_VALUE, maxCol = Integer.MIN_VALUE;
-            for (int i = 0; i < coordinates.size(); i++) {
-                int[] pos = coordinates.get(i);
-                int[] updated = new int[]{pos[0] - minRow, pos[1] - minCol};
-                maxRow = pos[0] > maxRow ? pos[0] : maxRow;
-                maxCol = pos[1] > maxCol ? pos[1] : maxCol;
-                coordinates.set(i, updated);
-            }
-            Config config = new Config(file.getName(), maxRow, maxCol);
-            coordinates.forEach(coordinate -> config.add(coordinate[0], coordinate[1]));
-            Config.register(config);
-        }
-        System.out.println("loaded config: " + file.getName());
-
-    }
-
     /**
      * use "saved" for saved games, use "configs" for saving permanent configurations.
      * if it is saved as a configuration, then it would be available for manipulation.
@@ -582,7 +619,6 @@ public class Context extends Displayable implements KeyControl {
         System.out.println("saved: " + fileName);
     }
 
-
     /**
      * TODO: improve
      */
@@ -632,58 +668,26 @@ public class Context extends Displayable implements KeyControl {
         ((Switch) JNode.get("@INSERT").get(0)).setState(true).activate();
     }
 
-
     public void keyReleased() {
         //if (getParent().keyCode == PApplet.SHIFT)
         //   this.selecting = false;
-    }
-
-    private static String getFilesPath(String fileName) {
-        return JNode.getParent().sketchPath() + "/src/game_objs/" + fileName;
-    }
-
-    private static int parseInt(String s) {
-        return PApplet.parseInt(s);
-    }
-
-    private static String getAlternativePath(String fileName) {
-        runningAsApplication = true;
-        try {
-            String pathToPApplet = PApplet.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
-            int index = pathToPApplet.indexOf("Contents");
-            return pathToPApplet.substring(0, index + "Contents".length()) + "/saved_configs/" + fileName;
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    public static File[] listOfFiles(String dir) {
-        File folder = new File(Context.getFilesPath(dir));
-        File[] listOfFiles = folder.listFiles();
-        if (listOfFiles == null) {
-            @SuppressWarnings("ConstantConditions") File alternateFolder = new File(Context.getAlternativePath(dir));
-            listOfFiles = alternateFolder.listFiles();
-        }
-        assert listOfFiles != null;
-        return listOfFiles;
-    }
-
-    public void setCurrentConfig(String configName) {
-        currentConfig = Config.extract(configName);
-        System.out.println("current config: " + configName);
-    }
-
-    public void setInsertingConfig(boolean temp) {
-        this.insertingConfig = temp;
     }
 
     boolean isInsertingConfig() {
         return insertingConfig;
     }
 
+    public void setInsertingConfig(boolean temp) {
+        this.insertingConfig = temp;
+    }
+
     public Config getCurrentConfig() {
         return currentConfig;
+    }
+
+    public void setCurrentConfig(String configName) {
+        currentConfig = Config.extract(configName);
+        System.out.println("current config: " + configName);
     }
 
     void displayConfig(int row, int col) {
@@ -704,23 +708,30 @@ public class Context extends Displayable implements KeyControl {
         }
     }
 
+    /**
+     * spawn random cells in the cell matrix
+     *
+     * @param chance a number between 0 and 1 that indicates whether or
+     *               not the cell would be alive.
+     */
+    public void spawnRandom(float chance) {
+        for (Cell[] cells : cellMatrix)
+            for (Cell cell : cells)
+                if (Math.random() < chance)
+                    cell.setAlive(!cell.isAlive());
+    }
 
     private static class Config {
         private static ArrayList<Config> configs;
-        private ArrayList<int[]> coordinates;
-        private String name;
-        private int rows;
-        private int cols;
-
-        private enum Dir {
-            HORIZONTAL,
-            VERTICAL,
-            ROTATE,
-        }
 
         static {
             configs = new ArrayList<>();
         }
+
+        private ArrayList<int[]> coordinates;
+        private String name;
+        private int rows;
+        private int cols;
 
         {
             coordinates = new ArrayList<>();
@@ -732,14 +743,21 @@ public class Context extends Displayable implements KeyControl {
             this.name = name;
         }
 
-        private void add(int row, int col) {
-            coordinates.add(new int[]{row, col});
-        }
-
         private static void register(Config config) {
             configs.add(config);
         }
 
+        @Nullable
+        private static Config extract(String name) {
+            for (Config config : configs)
+                if (config.name.equals(name))
+                    return config;
+            return null;
+        }
+
+        private void add(int row, int col) {
+            coordinates.add(new int[]{row, col});
+        }
 
         /**
          * inserts this configuration of cells into the designated context at a specific location.
@@ -754,14 +772,6 @@ public class Context extends Displayable implements KeyControl {
             for (int[] coordinate : coordinates)
                 translated.add(new int[]{row + coordinate[0], col + coordinate[1]});
             return translated;
-        }
-
-        @Nullable
-        private static Config extract(String name) {
-            for (Config config : configs)
-                if (config.name.equals(name))
-                    return config;
-            return null;
         }
 
         private void flip(Dir dir) {
@@ -792,19 +802,12 @@ public class Context extends Displayable implements KeyControl {
             cols = temp;
         }
 
-    }
+        private enum Dir {
+            HORIZONTAL,
+            VERTICAL,
+            ROTATE,
+        }
 
-    /**
-     * spawn random cells in the cell matrix
-     *
-     * @param chance a number between 0 and 1 that indicates whether or
-     *               not the cell would be alive.
-     */
-    public void spawnRandom(float chance) {
-        for (Cell[] cells : cellMatrix)
-            for (Cell cell : cells)
-                if (Math.random() < chance)
-                    cell.setAlive(!cell.isAlive());
     }
 
     private class Computation extends Thread {

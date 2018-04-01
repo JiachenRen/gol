@@ -309,6 +309,12 @@ public class Main extends PApplet {
                 .setContentOn("On")
                 .onClick(() -> Cell.setHighlightingMotion(!Cell.isHighlightingMotion()))
                 .setState(false));
+        uiPanel.add(new SpaceHolder());
+        uiPanel.add(new Label(1.0f, 0.05f).setContent("Grid").inheritOutlook(modelLabel));
+        uiPanel.add(new Switch(1.0f, 0.05f).setContentOff("Invisible")
+                .setContentOn("Visible")
+                .onClick(() -> gameContext.setCellGridVisible(!gameContext.isCellGridVisible()))
+                .setState(false));
 
         uiPanel.add(new SpaceHolder());
 
